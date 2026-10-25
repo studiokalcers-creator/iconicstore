@@ -818,7 +818,7 @@ export default function WebStorefront({
       </section>
 
       {/* 7. FOOTER */}
-      <Footer onOpenStaffLogin={onOpenStaffLogin} setCurrentTab={setCurrentTab} />
+      <Footer onOpenStaffLogin={onOpenStaffLogin} setCurrentTab={setCurrentTab} storeSettings={storeSettings} />
 
       {/* 8. DETAIL MODAL FOR ORDER VIA WHATSAPP */}
       {selectedDetailProduct && (

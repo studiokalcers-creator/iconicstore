@@ -1,7 +1,32 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Lock, MapPin, Phone, Mail, Clock } from 'lucide-react';
 
-export default function Footer({ onOpenStaffLogin, setCurrentTab }) {
+export default function Footer({ onOpenStaffLogin, setCurrentTab, storeSettings: propStoreSettings }) {
+  const [localSettings, setLocalSettings] = useState(() => {
+    try {
+      const saved = localStorage.getItem('iconicstore_settings');
+      return saved ? JSON.parse(saved) : {};
+    } catch (e) {
+      return {};
+    }
+  });
+
+  useEffect(() => {
+    const handleStorage = () => {
+      try {
+        const saved = localStorage.getItem('iconicstore_settings');
+        if (saved) setLocalSettings(JSON.parse(saved));
+      } catch (e) {}
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
+
+  const storeSettings = propStoreSettings || localSettings || {};
+  const storeName = storeSettings?.storeName || 'iConicstore';
+  const storeLogo = storeSettings?.storeLogo || null;
+  const storeTagline = storeSettings?.storeTagline;
+
   return (
     <footer style={{ marginTop: '80px', borderTop: '1px solid var(--border)', paddingTop: '48px', paddingBottom: '32px' }}>
       <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '0 32px' }}>
@@ -11,13 +36,33 @@ export default function Footer({ onOpenStaffLogin, setCurrentTab }) {
           {/* Brand Info */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', color: 'var(--accent-ink)', fontSize: '14px' }}>
-                iC
-              </div>
-              <span style={{ fontWeight: '700', fontSize: '17px' }}>iConicstore</span>
+              {storeLogo ? (
+                <img
+                  src={storeLogo}
+                  alt={storeName}
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '8px',
+                    objectFit: 'contain',
+                    background: 'rgba(255,255,255,0.06)',
+                    border: '1px solid var(--border)'
+                  }}
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+              ) : (
+                <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', color: 'var(--accent-ink)', fontSize: '14px' }}>
+                  {storeName ? storeName.substring(0, 2) : 'iC'}
+                </div>
+              )}
+              <span style={{ fontWeight: '700', fontSize: '17px', color: 'var(--text)' }}>{storeName}</span>
             </div>
             <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-dim)', lineHeight: '1.6' }}>
-              Pusat penjualan produk Apple baru (Garansi Resmi) dan second berkualitas di Indonesia. Transparan, terverifikasi 3uTools, dan garansi sinyal permanen.
+              {storeTagline 
+                ? `${storeTagline}. Pusat penjualan produk Apple baru (Garansi Resmi) dan second berkualitas di Indonesia. Transparan, terverifikasi 3uTools, dan garansi sinyal permanen.`
+                : 'Pusat penjualan produk Apple baru (Garansi Resmi) dan second berkualitas di Indonesia. Transparan, terverifikasi 3uTools, dan garansi sinyal permanen.'}
             </p>
           </div>
 
