@@ -26,6 +26,8 @@ export default function WebStorefront({
   categories = [],
   masterProducts = [],
   branches = [],
+  activeBranch,
+  setActiveBranch,
   tradeInValuations = {},
   servicePricelist = [],
   storeSettings = {},
@@ -127,82 +129,89 @@ export default function WebStorefront({
   };
 
   // Base Products List matching iConicstore standards (tersinkronisasi dengan Master Produk)
+  // Base Products List: Sinkron 100% dengan database unit fisik real-time & Katalog Master Produk
   const allProducts = useMemo(() => {
     const defaultMock = [
-      { id: 'unit-001', name: 'iPhone 13 128GB Midnight Blue', spec: 'Second — BH 89%', badge: 'Grade A+', badgeBg: '#0B1F33', badgeText: '#60A5FA', price: 'Rp 8.499.000', priceNum: 8499000, imei: '356789123456789', signal: 'Resmi Indonesia (iBox)', warranty: '1 Bulan Tukar Unit Toko', category: 'iphone', image: getApplePresetPhoto('iPhone 13') },
-      { id: 'unit-002', name: 'iPhone 14 Pro 256GB Deep Purple', spec: 'Baru — Garansi Resmi', badge: 'BNIB', badgeBg: '#10241A', badgeText: '#4ADE80', price: 'Rp 17.999.000', priceNum: 17999000, imei: '359012389012349', signal: 'Resmi Indonesia (iBox)', warranty: '12 Bulan Resmi Apple Indonesia', category: 'iphone', image: getApplePresetPhoto('iPhone 14 Pro') },
-      { id: 'unit-003', name: 'iPad Air 5 64GB Wifi', spec: 'Second — BH 95%', badge: 'Grade A', badgeBg: '#0B1F33', badgeText: '#60A5FA', price: 'Rp 7.250.000', priceNum: 7250000, imei: 'SN-DMPAIR564LK9', signal: 'WiFi Only (Non-IMEI)', warranty: '1 Bulan Tukar Unit Toko', category: 'ipad', image: getApplePresetPhoto('iPad Air 5') },
-      { id: 'unit-004', name: 'MacBook Air M2 256GB', spec: 'Second — Like New', badge: 'Grade B', badgeBg: '#2A1B05', badgeText: '#FBBF24', price: 'Rp 13.500.000', priceNum: 13500000, imei: 'SN-C02M2AIR256X', signal: 'Garansi Resmi Apple', warranty: '1 Bulan Tukar Unit Toko', category: 'macbook', image: getApplePresetPhoto('MacBook Air M2') },
-      { id: 'unit-005', name: 'iPhone 16 Pro Max 256GB Desert Titanium', spec: 'Baru — Garansi Resmi', badge: 'BNIB', badgeBg: '#10241A', badgeText: '#4ADE80', price: 'Rp 24.999.000', priceNum: 24999000, imei: '358742110982341', signal: 'Resmi Indonesia (iBox/GDN)', warranty: '12 Bulan Resmi Apple Indonesia', category: 'iphone', image: getApplePresetPhoto('iPhone 16 Pro Max') },
-      { id: 'unit-006', name: 'iPhone 15 Pro 128GB Natural Titanium', spec: 'Second — BH 94%', badge: 'Grade A+', badgeBg: '#0B1F33', badgeText: '#60A5FA', price: 'Rp 15.499.000', priceNum: 15499000, imei: '352984102948123', signal: 'Resmi Indonesia (iBox)', warranty: '1 Bulan Tukar Unit Toko', category: 'iphone', image: getApplePresetPhoto('iPhone 15 Pro') },
-      { id: 'unit-007', name: 'iPad Pro 11 M4 256GB Space Black', spec: 'Baru — Garansi Resmi', badge: 'BNIB', badgeBg: '#10241A', badgeText: '#4ADE80', price: 'Rp 18.499.000', priceNum: 18499000, imei: 'SN-DMP4X9012LK8', signal: 'WiFi Only (Non-IMEI)', warranty: '12 Bulan Resmi Apple Indonesia', category: 'ipad', image: getApplePresetPhoto('iPad Pro 11 M4') },
-      { id: 'unit-008', name: 'MacBook Air 13 M3 8GB 256GB Midnight', spec: 'Baru — Garansi Resmi', badge: 'BNIB', badgeBg: '#10241A', badgeText: '#4ADE80', price: 'Rp 18.299.000', priceNum: 18299000, imei: 'SN-C02W9K02MD89', signal: 'Garansi Resmi Apple Indonesia', warranty: '12 Bulan Resmi Apple Indonesia', category: 'macbook', image: getApplePresetPhoto('MacBook Air 13 M3') },
-      { id: 'unit-009', name: 'Apple Watch Series 10 46mm GPS Jet Black', spec: 'Baru — Garansi Resmi', badge: 'BNIB', badgeBg: '#10241A', badgeText: '#4ADE80', price: 'Rp 7.499.000', priceNum: 7499000, imei: 'SN-W10K892019MN', signal: 'Garansi Resmi Digimap', warranty: '12 Bulan Resmi Apple', category: 'watch', image: getApplePresetPhoto('Apple Watch Series 10') },
-      { id: 'unit-010', name: 'AirPods Pro Gen 2 Type-C MagSafe', spec: 'Baru — Garansi Resmi', badge: 'BNIB', badgeBg: '#10241A', badgeText: '#4ADE80', price: 'Rp 3.499.000', priceNum: 3499000, imei: 'SN-AP2C892109LK', signal: 'Garansi Resmi iBox', warranty: '12 Bulan Resmi Apple', category: 'accessories', image: getApplePresetPhoto('AirPods Pro Gen 2') }
+      { id: 'unit-001', name: 'iPhone 13 128GB Midnight Blue', spec: 'Second — BH 89%', badge: 'Grade A+', badgeBg: '#0B1F33', badgeText: '#60A5FA', price: 'Rp 8.499.000', priceNum: 8499000, imei: '356789123456789', signal: 'Resmi Indonesia (iBox)', warranty: '1 Bulan Tukar Unit Toko', category: 'iphone', branchId: 'b1', branchName: 'iConicstore', image: '/products/m-ip13.jpg' },
+      { id: 'unit-002', name: 'iPhone 14 Pro 256GB Deep Purple', spec: 'Baru — Garansi Resmi', badge: 'BNIB', badgeBg: '#10241A', badgeText: '#4ADE80', price: 'Rp 17.999.000', priceNum: 17999000, imei: '359012389012349', signal: 'Resmi Indonesia (iBox)', warranty: '12 Bulan Resmi Apple Indonesia', category: 'iphone', branchId: 'b1', branchName: 'iConicstore', image: '/products/m-ip14p.jpg' },
+      { id: 'unit-003', name: 'iPad Air 5 64GB Wifi', spec: 'Second — BH 95%', badge: 'Grade A', badgeBg: '#0B1F33', badgeText: '#60A5FA', price: 'Rp 7.250.000', priceNum: 7250000, imei: 'SN-DMPAIR564LK9', signal: 'WiFi Only (Non-IMEI)', warranty: '1 Bulan Tukar Unit Toko', category: 'ipad', branchId: 'b1', branchName: 'iConicstore', image: getApplePresetPhoto('iPad Air 5') },
+      { id: 'unit-004', name: 'MacBook Air M2 256GB', spec: 'Second — Like New', badge: 'Grade B', badgeBg: '#2A1B05', badgeText: '#FBBF24', price: 'Rp 13.500.000', priceNum: 13500000, imei: 'SN-C02M2AIR256X', signal: 'Garansi Resmi Apple', warranty: '1 Bulan Tukar Unit Toko', category: 'macbook', branchId: 'b1', branchName: 'iConicstore', image: getApplePresetPhoto('MacBook Air M2') },
+      { id: 'unit-005', name: 'iPhone 16 Pro Max 256GB Desert Titanium', spec: 'Baru — Garansi Resmi', badge: 'BNIB', badgeBg: '#10241A', badgeText: '#4ADE80', price: 'Rp 24.999.000', priceNum: 24999000, imei: '358742110982341', signal: 'Resmi Indonesia (iBox/GDN)', warranty: '12 Bulan Resmi Apple Indonesia', category: 'iphone', branchId: 'b1', branchName: 'iConicstore', image: '/products/m-ip16pm.jpg' }
     ];
 
-    const dynamicUnits = (units || [])
-      .filter(u => u && u.status === 'available')
-      .map(u => ({
+    const availableUnits = (units || []).filter(u => u && u.status === 'available');
+    const sourceList = availableUnits.length > 0 ? availableUnits : defaultMock;
+
+    return sourceList.map(u => {
+      // Cabang fisik toko
+      const branchObj = (branches || []).find(b => b.id === u.branchId);
+      const branchName = branchObj ? branchObj.name : ((branches && branches[0]?.name) || 'iConicstore');
+      const branchId = u.branchId || (branches && branches[0]?.id) || 'b1';
+
+      // Temukan kecocokan Katalog Master Produk berdasarkan masterId atau kemiripan nama seri
+      const uName = (u.modelName || u.name || '').toLowerCase();
+      const matchedMaster = (masterProducts || []).find(m => {
+        if (!m) return false;
+        if (u.masterId && m.id && (u.masterId === m.id || m.id.includes(u.masterId) || u.masterId.includes(m.id))) {
+          return true;
+        }
+        const mName = (m.name || '').toLowerCase();
+        return uName.startsWith(mName) || uName.includes(mName);
+      });
+
+      // Foto produk
+      let finalImage = u.image;
+      if (!finalImage || finalImage.includes('unsplash.com')) {
+        if (matchedMaster && matchedMaster.image && !matchedMaster.image.includes('unsplash.com')) {
+          finalImage = matchedMaster.image;
+        } else {
+          finalImage = getApplePresetPhoto(u.modelName || u.name || matchedMaster?.name || u.category);
+        }
+      }
+
+      // Kategori
+      const category = (matchedMaster?.category || u.category || 'iphone').toLowerCase();
+
+      // Harga jual acuan
+      const rawPrice = u.priceRetail !== undefined ? u.priceRetail : (u.priceNum !== undefined ? u.priceNum : (matchedMaster?.baseRetail || matchedMaster?.priceRetail || 0));
+      const priceNum = Number(rawPrice) || 0;
+
+      // Kondisi & Badge Grade
+      const isBaru = (u.condition && u.condition.includes('Baru')) || u.grade === 'BNIB' || (u.spec && u.spec.includes('Baru'));
+      const spec = u.spec || (u.batteryHealth ? `${u.condition || 'Second'} — BH ${u.batteryHealth}%` : (u.condition || 'Second Like New'));
+
+      let badge = u.badge || (isBaru ? 'BNIB' : (u.grade || 'Grade A+'));
+      let badgeBg = '#0B1F33';
+      let badgeText = '#60A5FA';
+      if (isBaru || badge === 'BNIB') {
+        badge = 'BNIB';
+        badgeBg = '#10241A';
+        badgeText = '#4ADE80';
+      } else if (badge.includes('Grade B')) {
+        badgeBg = '#2A1B05';
+        badgeText = '#FBBF24';
+      }
+
+      return {
         id: u.id,
-        name: u.modelName,
-        spec: u.batteryHealth ? `${u.condition} — BH ${u.batteryHealth}%` : u.condition,
-        badge: u.condition && u.condition.includes('Baru') ? 'BNIB' : (u.grade || 'Grade A+'),
-        badgeBg: u.condition && u.condition.includes('Baru') ? '#10241A' : '#0B1F33',
-        badgeText: u.condition && u.condition.includes('Baru') ? '#4ADE80' : '#60A5FA',
-        price: formatRupiah(u.priceRetail),
-        priceNum: u.priceRetail,
-        imei: u.imei || u.serialNumber || u.barcodeCode,
-        signal: u.signalOrigin || 'Resmi Indonesia',
-        warranty: u.storeWarranty || '1 Bulan Tukar Unit Toko',
-        category: (u.category || 'iphone').toLowerCase(),
-        image: u.image || getApplePresetPhoto(u.modelName || u.category),
-        imageCustom: u.imageCustom
-      }));
-
-    const existingIds = new Set(defaultMock.map(m => m.id));
-    const uniqueDynamic = dynamicUnits.filter(d => !existingIds.has(d.id));
-    const merged = [...defaultMock, ...uniqueDynamic];
-
-    // Sinkronisasi foto produk dan harga acuan dari Katalog Master Produk jika diedit oleh Owner
-    const activeMasters = (masterProducts || []).filter(m => m && m.name && m.image);
-
-    return merged.map(p => {
-      // Jika unit fisik punya foto kustom spesifik yang diupload per unit, prioritas utama
-      if (p.imageCustom && p.image) return p;
-
-      const pNameLower = (p.name || '').toLowerCase();
-      
-      // Temukan master product yang paling cocok dengan nama seri produk
-      const matchedMaster = activeMasters
-        .filter(m => {
-          const mNameLower = m.name.toLowerCase();
-          return pNameLower.startsWith(mNameLower) || 
-                 pNameLower.includes(mNameLower) || 
-                 mNameLower.startsWith(pNameLower.split(' ').slice(0, 2).join(' '));
-        })
-        .sort((a, b) => b.name.length - a.name.length)[0];
-
-      if (matchedMaster) {
-        return {
-          ...p,
-          image: matchedMaster.image,
-          price: matchedMaster.baseRetail ? formatRupiah(matchedMaster.baseRetail) : p.price,
-          priceNum: matchedMaster.baseRetail || p.priceNum
-        };
-      }
-
-      // Pastikan selalu ada foto preset Apple yang bersih dan rapi
-      if (!p.image || p.image.includes('unsplash.com')) {
-        return {
-          ...p,
-          image: getApplePresetPhoto(p.name || p.category)
-        };
-      }
-
-      return p;
+        name: u.modelName || u.name,
+        spec,
+        badge,
+        badgeBg,
+        badgeText,
+        price: formatRupiah(priceNum),
+        priceNum,
+        imei: u.imei || u.serialNumber || u.barcodeCode || '-',
+        signal: u.signalOrigin || u.signal || 'Resmi Indonesia',
+        warranty: u.storeWarranty || u.warranty || '1 Bulan Tukar Unit Toko',
+        category,
+        branchId,
+        branchName,
+        image: finalImage,
+        imageCustom: !!u.imageCustom
+      };
     });
-  }, [units, masterProducts]);
+  }, [units, branches, masterProducts]);
 
   // Visual Category Card Definitions (Customizable via Pengaturan Toko or default to Apple presets)
   const categoryCards = useMemo(() => {

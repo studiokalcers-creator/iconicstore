@@ -438,6 +438,9 @@ export async function fetchSupabaseData() {
         baseHpp: m.price_modal,
         baseRetail: m.price_retail,
         baseReseller: m.price_reseller,
+        priceRetail: m.price_retail,
+        priceReseller: m.price_reseller,
+        priceModal: m.price_modal,
         minStockAlert: m.min_stock_alert,
         active: true
       }));

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Search, 
   MessageCircle, 
@@ -21,16 +21,33 @@ export default function PricelistView({
   categories = [],
   masterProducts = [],
   branches = [], 
+  activeBranch,
+  setActiveBranch,
   onOpenStaffLogin,
   setCurrentTab 
 }) {
   const [selectedCategory, setSelectedCategory] = useState('semua');
   const [selectedCondition, setSelectedCondition] = useState('Semua Kondisi');
   const [selectedSignal, setSelectedSignal] = useState('Semua Status');
-  const [selectedBranch, setSelectedBranch] = useState('semua');
+  const [selectedBranch, setSelectedBranch] = useState(() => activeBranch?.id || 'semua');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDetailProduct, setSelectedDetailProduct] = useState(null);
   const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'table'
+
+  // Sinkronisasi otomatis saat cabang aktif di header atas berubah
+  useEffect(() => {
+    if (activeBranch?.id) {
+      setSelectedBranch(activeBranch.id);
+    }
+  }, [activeBranch?.id]);
+
+  const handleBranchChange = (branchId) => {
+    setSelectedBranch(branchId);
+    if (branchId !== 'semua' && setActiveBranch) {
+      const target = branches.find(b => b.id === branchId);
+      if (target) setActiveBranch(target);
+    }
+  };
 
   const accent = '#0A84FF';
 
@@ -51,68 +68,102 @@ export default function PricelistView({
     ];
   }, [categories]);
 
-  // Base Products List matching the user's exact specification
+  // Base Products List: Sinkron 100% dengan database unit fisik real-time & Katalog Master Produk
   const allProducts = useMemo(() => {
     const defaultMock = [
-      { id: 'unit-001', name: 'iPhone 13 128GB Midnight Blue', spec: 'Second — BH 89%', badge: 'Grade A+', badgeBg: '#0B1F33', badgeText: '#60A5FA', price: 'Rp 8.499.000', priceNum: 8499000, imei: '356789123456789', signal: 'Resmi Indonesia (iBox)', warranty: '1 Bulan Tukar Unit Toko', category: 'iphone', branchId: 'b1', branchName: 'Cabang Surabaya Pusat', image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02560?w=600&auto=format&fit=crop&q=80' },
-      { id: 'unit-002', name: 'iPhone 14 Pro 256GB Deep Purple', spec: 'Baru — Garansi Resmi', badge: 'BNIB', badgeBg: '#10241A', badgeText: '#4ADE80', price: 'Rp 17.999.000', priceNum: 17999000, imei: '359012389012349', signal: 'Resmi Indonesia (iBox)', warranty: '12 Bulan Resmi Apple Indonesia', category: 'iphone', branchId: 'b1', branchName: 'Cabang Surabaya Pusat', image: 'https://images.unsplash.com/photo-1663499482523-1c0c1bae4ce1?w=600&auto=format&fit=crop&q=80' },
-      { id: 'unit-003', name: 'iPad Air 5 64GB Wifi', spec: 'Second — BH 95%', badge: 'Grade A', badgeBg: '#0B1F33', badgeText: '#60A5FA', price: 'Rp 7.250.000', priceNum: 7250000, imei: 'SN-DMPAIR564LK9', signal: 'WiFi Only (Non-IMEI)', warranty: '1 Bulan Tukar Unit Toko', category: 'ipad', branchId: 'b2', branchName: 'Cabang Malang', image: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=600&auto=format&fit=crop&q=80' },
-      { id: 'unit-004', name: 'MacBook Air M2 256GB', spec: 'Second — Like New', badge: 'Grade B', badgeBg: '#2A1B05', badgeText: '#FBBF24', price: 'Rp 13.500.000', priceNum: 13500000, imei: 'SN-C02M2AIR256X', signal: 'Garansi Resmi Apple', warranty: '1 Bulan Tukar Unit Toko', category: 'macbook', branchId: 'b1', branchName: 'Cabang Surabaya Pusat', image: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=600&auto=format&fit=crop&q=80' },
-      { id: 'unit-005', name: 'iPhone 16 Pro Max 256GB Desert Titanium', spec: 'Baru — Garansi Resmi', badge: 'BNIB', badgeBg: '#10241A', badgeText: '#4ADE80', price: 'Rp 24.999.000', priceNum: 24999000, imei: '358742110982341', signal: 'Resmi Indonesia (iBox/GDN)', warranty: '12 Bulan Resmi Apple Indonesia', category: 'iphone', branchId: 'b1', branchName: 'Cabang Surabaya Pusat', image: 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=600&auto=format&fit=crop&q=80' },
-      { id: 'unit-006', name: 'iPhone 15 Pro 128GB Natural Titanium', spec: 'Second — BH 94%', badge: 'Grade A+', badgeBg: '#0B1F33', badgeText: '#60A5FA', price: 'Rp 15.499.000', priceNum: 15499000, imei: '352984102948123', signal: 'Resmi Indonesia (iBox)', warranty: '1 Bulan Tukar Unit Toko', category: 'iphone', branchId: 'b2', branchName: 'Cabang Malang', image: 'https://images.unsplash.com/photo-1510557880182-3d4d3cba35a5?w=600&auto=format&fit=crop&q=80' },
-      { id: 'unit-007', name: 'iPad Pro 11 M4 256GB Space Black', spec: 'Baru — Garansi Resmi', badge: 'BNIB', badgeBg: '#10241A', badgeText: '#4ADE80', price: 'Rp 18.499.000', priceNum: 18499000, imei: 'SN-DMP4X9012LK8', signal: 'WiFi Only (Non-IMEI)', warranty: '12 Bulan Resmi Apple Indonesia', category: 'ipad', branchId: 'b1', branchName: 'Cabang Surabaya Pusat', image: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=600&auto=format&fit=crop&q=80' },
-      { id: 'unit-008', name: 'MacBook Air 13 M3 8GB 256GB Midnight', spec: 'Baru — Garansi Resmi', badge: 'BNIB', badgeBg: '#10241A', badgeText: '#4ADE80', price: 'Rp 18.299.000', priceNum: 18299000, imei: 'SN-C02W9K02MD89', signal: 'Garansi Resmi Apple Indonesia', warranty: '12 Bulan Resmi Apple Indonesia', category: 'macbook', branchId: 'b2', branchName: 'Cabang Malang', image: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=600&auto=format&fit=crop&q=80' },
-      { id: 'unit-009', name: 'Apple Watch Series 10 46mm GPS Jet Black', spec: 'Baru — Garansi Resmi', badge: 'BNIB', badgeBg: '#10241A', badgeText: '#4ADE80', price: 'Rp 7.499.000', priceNum: 7499000, imei: 'SN-W10K892019MN', signal: 'Garansi Resmi Digimap', warranty: '12 Bulan Resmi Apple', category: 'watch', branchId: 'b1', branchName: 'Cabang Surabaya Pusat', image: 'https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?w=600&auto=format&fit=crop&q=80' },
-      { id: 'unit-010', name: 'AirPods Pro Gen 2 Type-C MagSafe', spec: 'Baru — Garansi Resmi', badge: 'BNIB', badgeBg: '#10241A', badgeText: '#4ADE80', price: 'Rp 3.499.000', priceNum: 3499000, imei: 'SN-AP2C892109LK', signal: 'Garansi Resmi iBox', warranty: '12 Bulan Resmi Apple', category: 'accessories', branchId: 'b1', branchName: 'Cabang Surabaya Pusat', image: 'https://images.unsplash.com/photo-1600294037681-c80b4cb5b434?w=600&auto=format&fit=crop&q=80' }
+      { id: 'unit-001', name: 'iPhone 13 128GB Midnight Blue', spec: 'Second — BH 89%', badge: 'Grade A+', badgeBg: '#0B1F33', badgeText: '#60A5FA', price: 'Rp 8.499.000', priceNum: 8499000, imei: '356789123456789', signal: 'Resmi Indonesia (iBox)', warranty: '1 Bulan Tukar Unit Toko', category: 'iphone', branchId: 'b1', branchName: 'iConicstore', image: '/products/m-ip13.jpg' },
+      { id: 'unit-002', name: 'iPhone 14 Pro 256GB Deep Purple', spec: 'Baru — Garansi Resmi', badge: 'BNIB', badgeBg: '#10241A', badgeText: '#4ADE80', price: 'Rp 17.999.000', priceNum: 17999000, imei: '359012389012349', signal: 'Resmi Indonesia (iBox)', warranty: '12 Bulan Resmi Apple Indonesia', category: 'iphone', branchId: 'b1', branchName: 'iConicstore', image: '/products/m-ip14p.jpg' },
+      { id: 'unit-003', name: 'iPad Air 5 64GB Wifi', spec: 'Second — BH 95%', badge: 'Grade A', badgeBg: '#0B1F33', badgeText: '#60A5FA', price: 'Rp 7.250.000', priceNum: 7250000, imei: 'SN-DMPAIR564LK9', signal: 'WiFi Only (Non-IMEI)', warranty: '1 Bulan Tukar Unit Toko', category: 'ipad', branchId: 'b1', branchName: 'iConicstore', image: getApplePresetPhoto('iPad Air 5') },
+      { id: 'unit-004', name: 'MacBook Air M2 256GB', spec: 'Second — Like New', badge: 'Grade B', badgeBg: '#2A1B05', badgeText: '#FBBF24', price: 'Rp 13.500.000', priceNum: 13500000, imei: 'SN-C02M2AIR256X', signal: 'Garansi Resmi Apple', warranty: '1 Bulan Tukar Unit Toko', category: 'macbook', branchId: 'b1', branchName: 'iConicstore', image: getApplePresetPhoto('MacBook Air M2') },
+      { id: 'unit-005', name: 'iPhone 16 Pro Max 256GB Desert Titanium', spec: 'Baru — Garansi Resmi', badge: 'BNIB', badgeBg: '#10241A', badgeText: '#4ADE80', price: 'Rp 24.999.000', priceNum: 24999000, imei: '358742110982341', signal: 'Resmi Indonesia (iBox/GDN)', warranty: '12 Bulan Resmi Apple Indonesia', category: 'iphone', branchId: 'b1', branchName: 'iConicstore', image: '/products/m-ip16pm.jpg' }
     ];
 
-    const dynamicUnits = (units || [])
-      .filter(u => u && u.status === 'available')
-      .map(u => {
-        const branchObj = branches.find(b => b.id === u.branchId);
-        return {
-          id: u.id,
-          name: u.modelName,
-          spec: u.batteryHealth ? `${u.condition} — BH ${u.batteryHealth}%` : u.condition,
-          badge: u.condition && u.condition.includes('Baru') ? 'BNIB' : (u.grade || 'Grade A+'),
-          badgeBg: u.condition && u.condition.includes('Baru') ? '#10241A' : '#0B1F33',
-          badgeText: u.condition && u.condition.includes('Baru') ? '#4ADE80' : '#60A5FA',
-          price: formatRupiah(u.priceRetail),
-          priceNum: u.priceRetail,
-          imei: u.imei || u.serialNumber || u.barcodeCode,
-          signal: u.signalOrigin || 'Resmi Indonesia',
-          warranty: u.storeWarranty || '1 Bulan Tukar Unit Toko',
-          category: u.category || 'iphone',
-          branchId: u.branchId || 'b1',
-          branchName: branchObj ? branchObj.name : 'Cabang Utama',
-          image: u.image || getApplePresetPhoto(u.modelName || u.category),
-          imageCustom: !!u.imageCustom
-        };
+    const availableUnits = (units || []).filter(u => u && u.status === 'available');
+    const sourceList = availableUnits.length > 0 ? availableUnits : defaultMock;
+
+    return sourceList.map(u => {
+      // Cabang fisik toko dari data branches
+      const branchObj = (branches || []).find(b => b.id === u.branchId);
+      const branchName = branchObj ? branchObj.name : ((branches && branches[0]?.name) || 'iConicstore');
+      const branchId = u.branchId || (branches && branches[0]?.id) || 'b1';
+
+      // Temukan kecocokan Katalog Master Produk berdasarkan masterId atau kemiripan nama seri
+      const uName = (u.modelName || u.name || '').toLowerCase();
+      const matchedMaster = (masterProducts || []).find(m => {
+        if (!m) return false;
+        if (u.masterId && m.id && (u.masterId === m.id || m.id.includes(u.masterId) || u.masterId.includes(m.id))) {
+          return true;
+        }
+        const mName = (m.name || '').toLowerCase();
+        return uName.startsWith(mName) || uName.includes(mName);
       });
 
-    const existingIds = new Set(defaultMock.map(m => m.id));
-    const uniqueDynamic = dynamicUnits.filter(d => !existingIds.has(d.id));
+      // Foto produk: foto unit jika kustom > foto katalog master produk > preset Apple
+      let finalImage = u.image;
+      if (!finalImage || finalImage.includes('unsplash.com')) {
+        if (matchedMaster && matchedMaster.image && !matchedMaster.image.includes('unsplash.com')) {
+          finalImage = matchedMaster.image;
+        } else {
+          finalImage = getApplePresetPhoto(u.modelName || u.name || matchedMaster?.name || u.category);
+        }
+      }
 
-    const merged = [...defaultMock, ...uniqueDynamic];
+      // Kategori produk (diselaraskan dengan kategori Master Produk jika ada)
+      const category = (matchedMaster?.category || u.category || 'iphone').toLowerCase();
 
-    // Foto kustom dari Master Produk menggantikan foto bawaan (kecuali unit punya foto kustom sendiri)
-    const customMasters = (masterProducts || []).filter(m => m && m.name && m.imageCustom && m.image);
-    return merged.map(p => {
-      if (p.imageCustom) return p;
-      const nameLc = (p.name || '').toLowerCase();
-      const match = customMasters
-        .filter(m => nameLc.startsWith(m.name.toLowerCase()))
-        .sort((a, b) => b.name.length - a.name.length)[0];
-      return match ? { ...p, image: match.image } : p;
+      // Harga jual acuan (prioritas harga unit, jika 0 fallback ke harga retail Master Produk)
+      const rawPrice = u.priceRetail !== undefined ? u.priceRetail : (u.priceNum !== undefined ? u.priceNum : (matchedMaster?.baseRetail || matchedMaster?.priceRetail || 0));
+      const priceNum = Number(rawPrice) || 0;
+
+      // Kondisi & Badge Grade
+      const isBaru = (u.condition && u.condition.includes('Baru')) || u.grade === 'BNIB' || (u.spec && u.spec.includes('Baru'));
+      const spec = u.spec || (u.batteryHealth ? `${u.condition || 'Second'} — BH ${u.batteryHealth}%` : (u.condition || 'Second Like New'));
+
+      let badge = u.badge || (isBaru ? 'BNIB' : (u.grade || 'Grade A+'));
+      let badgeBg = '#0B1F33';
+      let badgeText = '#60A5FA';
+      if (isBaru || badge === 'BNIB') {
+        badge = 'BNIB';
+        badgeBg = '#10241A';
+        badgeText = '#4ADE80';
+      } else if (badge.includes('Grade B')) {
+        badgeBg = '#2A1B05';
+        badgeText = '#FBBF24';
+      }
+
+      return {
+        id: u.id,
+        name: u.modelName || u.name,
+        spec,
+        badge,
+        badgeBg,
+        badgeText,
+        price: formatRupiah(priceNum),
+        priceNum,
+        imei: u.imei || u.serialNumber || u.barcodeCode || '-',
+        signal: u.signalOrigin || u.signal || 'Resmi Indonesia (iBox)',
+        warranty: u.storeWarranty || u.warranty || '1 Bulan Tukar Unit Toko',
+        category,
+        branchId,
+        branchName,
+        image: finalImage,
+        imageCustom: !!u.imageCustom
+      };
     });
   }, [units, branches, masterProducts]);
 
   // Filtered Products
   const products = useMemo(() => {
     return allProducts.filter(p => {
-      // Category filter
-      if (selectedCategory !== 'semua' && p.category !== selectedCategory) {
-        return false;
+      // Category filter (mendukung audio & aksesoris secara luwes)
+      if (selectedCategory !== 'semua') {
+        const cat = (p.category || '').toLowerCase();
+        const sel = selectedCategory.toLowerCase();
+        if (sel === 'accessories' || sel === 'audio') {
+          if (cat !== 'accessories' && cat !== 'audio' && !cat.includes('airpod')) return false;
+        } else if (cat !== sel) {
+          return false;
+        }
       }
 
       // Branch filter
@@ -285,12 +336,15 @@ export default function PricelistView({
                 <select 
                   id="branch-pl" 
                   value={selectedBranch}
-                  onChange={(e) => setSelectedBranch(e.target.value)}
+                  onChange={(e) => handleBranchChange(e.target.value)}
                   style={{ width: '100%', boxSizing: 'border-box', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', fontSize: '14px', padding: '11px 32px 11px 14px', borderRadius: '10px', minHeight: '44px', cursor: 'pointer', appearance: 'none', WebkitAppearance: 'none' }}
                 >
-                  <option value="semua">Semua Cabang</option>
-                  <option value="b1">Cabang Surabaya Pusat</option>
-                  <option value="b2">Cabang Malang</option>
+                  <option value="semua">Semua Cabang ({branches.length > 0 ? `${branches.length} Outlet` : 'Seluruh Toko'})</option>
+                  {branches.map(b => (
+                    <option key={b.id} value={b.id} style={{ background: '#15171B', color: '#F4F5F6' }}>
+                      {b.name}
+                    </option>
+                  ))}
                 </select>
                 <ChevronDown style={{ width: '14px', height: '14px', position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-dim)' }} />
               </div>

@@ -576,6 +576,8 @@ export default function App() {
             servicePricelist={SERVICE_PRICELIST}
             tradeInValuations={TRADE_IN_VALUATIONS}
             branches={branches}
+            activeBranch={activeBranch}
+            setActiveBranch={setActiveBranch}
             storeSettings={storeSettings}
             onOpenStaffLogin={() => setIsStaffLoginOpen(true)}
             setCurrentTab={setCurrentTab}
@@ -588,6 +590,8 @@ export default function App() {
             categories={categories}
             masterProducts={masterProducts}
             branches={branches}
+            activeBranch={activeBranch}
+            setActiveBranch={setActiveBranch}
             onOpenStaffLogin={() => setIsStaffLoginOpen(true)}
             setCurrentTab={setCurrentTab}
           />
