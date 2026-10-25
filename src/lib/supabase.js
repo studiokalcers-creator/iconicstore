@@ -413,9 +413,10 @@ export async function fetchSupabaseData() {
   if (!client) return null;
 
   try {
-    const [settingsRes, mastersRes] = await Promise.all([
+    const [settingsRes, mastersRes, unitsRes] = await Promise.all([
       client.from('store_settings').select('data').limit(1),
-      client.from('master_products').select('*')
+      client.from('master_products').select('*'),
+      client.from('units').select('*')
     ]);
 
     const result = {};
@@ -435,6 +436,32 @@ export async function fetchSupabaseData() {
         baseReseller: m.price_reseller,
         minStockAlert: m.min_stock_alert,
         active: true
+      }));
+    }
+
+    if (unitsRes.data && unitsRes.data.length > 0) {
+      result.units = unitsRes.data.map(u => ({
+        id: u.id,
+        masterId: u.master_id,
+        modelName: u.model_name,
+        color: u.color,
+        storage: u.storage,
+        category: u.category,
+        condition: u.condition,
+        grade: u.grade,
+        batteryHealth: u.battery_health,
+        imei: u.imei,
+        serialNumber: u.serial_number,
+        signalOrigin: u.signal_origin,
+        signalWarranty: u.signal_warranty,
+        storeWarranty: u.store_warranty,
+        priceModal: u.price_modal,
+        priceRetail: u.price_retail,
+        priceReseller: u.price_reseller,
+        barcodeCode: u.barcode_code,
+        status: u.status,
+        branchId: u.branch_id,
+        image: u.image
       }));
     }
 

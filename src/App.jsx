@@ -28,7 +28,7 @@ import {
   INITIAL_CATEGORIES,
   getApplePresetPhoto
 } from './data/mockData';
-import { fetchSupabaseData } from './lib/supabase';
+import { fetchSupabaseData, getSupabaseClient } from './lib/supabase';
 
 const VALID_TABS = [
   'storefront', 
@@ -147,7 +147,7 @@ export default function App() {
     safeLoad('iconicstore_settings', INITIAL_STORE_SETTINGS, val => val && typeof val === 'object')
   );
 
-  // Automatically fetch latest store settings and master products from Supabase Cloud on load
+  // Automatically fetch latest store settings, master products, and physical units from Supabase Cloud on load
   useEffect(() => {
     fetchSupabaseData().then(cloudData => {
       if (!cloudData) return;
@@ -156,6 +156,9 @@ export default function App() {
       }
       if (cloudData.masterProducts && Array.isArray(cloudData.masterProducts) && cloudData.masterProducts.length > 0) {
         setMasterProducts(cloudData.masterProducts);
+      }
+      if (cloudData.units && Array.isArray(cloudData.units) && cloudData.units.length > 0) {
+        setUnits(cloudData.units);
       }
     }).catch(() => {});
   }, []);
@@ -268,18 +271,59 @@ export default function App() {
 
   const handleAddMasterProduct = (newProduct) => {
     setMasterProducts(prev => [newProduct, ...prev]);
+    const client = getSupabaseClient();
+    if (client) {
+      client.from('master_products').upsert([{
+        id: newProduct.id,
+        name: newProduct.name,
+        category: newProduct.category,
+        image: newProduct.image || '',
+        price_modal: newProduct.baseHpp || 0,
+        price_retail: newProduct.baseRetail || 0,
+        price_reseller: newProduct.baseReseller || 0,
+        min_stock_alert: newProduct.minStockAlert || 2
+      }]).catch(() => {});
+    }
   };
 
   const handleUpdateMasterProduct = (updatedProduct) => {
     setMasterProducts(prev => prev.map(p => p.id === updatedProduct.id ? updatedProduct : p));
+    const client = getSupabaseClient();
+    if (client) {
+      client.from('master_products').upsert([{
+        id: updatedProduct.id,
+        name: updatedProduct.name,
+        category: updatedProduct.category,
+        image: updatedProduct.image || '',
+        price_modal: updatedProduct.baseHpp || 0,
+        price_retail: updatedProduct.baseRetail || 0,
+        price_reseller: updatedProduct.baseReseller || 0,
+        min_stock_alert: updatedProduct.minStockAlert || 2
+      }]).catch(() => {});
+    }
   };
 
   const handleDeleteMasterProduct = (productId) => {
     setMasterProducts(prev => prev.filter(p => p.id !== productId));
+    const client = getSupabaseClient();
+    if (client) {
+      client.from('master_products').delete().eq('id', productId).catch(() => {});
+    }
   };
 
   const handleUpdateStoreSettings = (newSettings) => {
-    setStoreSettings(prev => ({ ...prev, ...newSettings }));
+    setStoreSettings(prev => {
+      const merged = { ...prev, ...newSettings };
+      const client = getSupabaseClient();
+      if (client) {
+        client.from('store_settings').upsert([{
+          id: 'primary_store_settings',
+          store_name: merged.storeName || '',
+          data: merged
+        }]).catch(() => {});
+      }
+      return merged;
+    });
   };
 
   // Auto-sync any units created in Gudang/Barcode into Master Products Catalog
