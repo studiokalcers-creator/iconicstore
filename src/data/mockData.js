@@ -633,10 +633,10 @@ export const INITIAL_SHIFT_REPORTS = [
 ];
 
 export const INITIAL_MASTER_PRODUCTS = [
-  { id: 'm-ip13', name: 'iPhone 13', category: 'iphone', baseRetail: 8499000, baseReseller: 8100000, baseHpp: 7200000, minStockAlert: 2, active: true, image: getApplePresetPhoto('iPhone 13') },
-  { id: 'm-ip14p', name: 'iPhone 14 Pro', category: 'iphone', baseRetail: 17999000, baseReseller: 17200000, baseHpp: 15500000, minStockAlert: 1, active: true, image: getApplePresetPhoto('iPhone 14 Pro') },
-  { id: 'm-ip15p', name: 'iPhone 15 Pro', category: 'iphone', baseRetail: 15499000, baseReseller: 14700000, baseHpp: 13200000, minStockAlert: 2, active: true, image: getApplePresetPhoto('iPhone 15 Pro') },
-  { id: 'm-ip16pm', name: 'iPhone 16 Pro Max', category: 'iphone', baseRetail: 24999000, baseReseller: 23800000, baseHpp: 22500000, minStockAlert: 2, active: true, image: getApplePresetPhoto('iPhone 16 Pro Max') },
+  { id: 'm-ip13', name: 'iPhone 13', category: 'iphone', baseRetail: 8499000, baseReseller: 8100000, baseHpp: 7200000, minStockAlert: 2, active: true, image: '/products/m-ip13.jpg' },
+  { id: 'm-ip14p', name: 'iPhone 14 Pro', category: 'iphone', baseRetail: 17999000, baseReseller: 17200000, baseHpp: 15500000, minStockAlert: 1, active: true, image: '/products/m-ip14p.jpg' },
+  { id: 'm-ip15p', name: 'iPhone 15 Pro', category: 'iphone', baseRetail: 15499000, baseReseller: 14700000, baseHpp: 13200000, minStockAlert: 2, active: true, image: '/products/m-ip15p.jpg' },
+  { id: 'm-ip16pm', name: 'iPhone 16 Pro Max', category: 'iphone', baseRetail: 24999000, baseReseller: 23800000, baseHpp: 22500000, minStockAlert: 2, active: true, image: '/products/m-ip16pm.jpg' },
   { id: 'm-ipad-air5', name: 'iPad Air 5', category: 'ipad', baseRetail: 7250000, baseReseller: 7100000, baseHpp: 6200000, minStockAlert: 1, active: true, image: getApplePresetPhoto('iPad Air') },
   { id: 'm-mac-m2', name: 'MacBook Air M2', category: 'macbook', baseRetail: 13500000, baseReseller: 12900000, baseHpp: 11800000, minStockAlert: 1, active: true, image: getApplePresetPhoto('MacBook Air') },
   { id: 'm-watch-s10', name: 'Apple Watch Series 10', category: 'watch', baseRetail: 7499000, baseReseller: 7100000, baseHpp: 6500000, minStockAlert: 1, active: true, image: getApplePresetPhoto('Apple Watch Series 10') },
@@ -655,7 +655,7 @@ export const INITIAL_CATEGORIES = [
 export const INITIAL_STORE_SETTINGS = {
   storeName: 'iConicstore Indonesia',
   storeTagline: 'Official Apple Store & Reseller',
-  storeLogo: null, // Custom logo data URL or image path
+  storeLogo: '/logo.png', // Custom logo path
   ownerPin: '9999',
   supervisorPin: '1234',
   cashierDefaultPin: '1234',
@@ -670,28 +670,22 @@ export const INITIAL_STORE_SETTINGS = {
   // Storefront Hero Banners Slider Settings
   heroBanners: [
     {
-      id: 'banner-1',
-      title: 'Pre-Order iPhone 16 Pro Series',
-      imageUrl: 'https://iosstore.id/assets/pagebuilder/media/2026/08/pb_20260826_141133_20403e9ff9.png',
+      id: 'banner-1792946826405',
+      title: 'Pre-Order iPhone 18 Pro Series',
+      imageUrl: '/banners/banner-1792946826405.jpg',
       targetTab: 'pricelist',
       category: 'iphone',
-      showText: false
+      showText: true,
+      active: true
     },
     {
-      id: 'banner-2',
-      title: 'Garansi s/d 36 Bulan & Sinyal Aktif',
-      imageUrl: 'https://iosstore.id/assets/pagebuilder/media/2026/08/pb_20260822_100618_1eee45373b.png',
-      targetTab: 'warranty',
-      category: null,
-      showText: false
-    },
-    {
-      id: 'banner-3',
-      title: 'Program Tukar Tambah & Cicilan 0%',
-      imageUrl: 'https://iosstore.id/assets/pagebuilder/media/2026/10/pb_20261002_152251_e8663f0e9f.png',
+      id: 'banner-1792946920900',
+      title: 'Pre-Order iPhone Duo',
+      imageUrl: '/banners/banner-1792946920900.jpg',
       targetTab: 'tradein',
       category: null,
-      showText: false
+      showText: true,
+      active: true
     }
   ],
   // Storefront Visual Category Cards (6 Cards on Beranda)
@@ -699,7 +693,7 @@ export const INITIAL_STORE_SETTINGS = {
     iphone: {
       title: 'iPhone',
       subtitle: 'Smartphone Apple iOS',
-      image: 'https://iosstore.id/assets/pagebuilder/media/2026/07/pb_20260723_014144_9ed27b199b.png'
+      image: '/categories/iphone.png'
     },
     ipad: {
       title: 'iPad',
@@ -733,7 +727,7 @@ export const DEFAULT_CATEGORY_CARDS = {
   iphone: {
     title: 'iPhone',
     subtitle: 'Smartphone Apple iOS',
-    image: 'https://iosstore.id/assets/pagebuilder/media/2026/07/pb_20260723_014144_9ed27b199b.png'
+    image: '/categories/iphone.png'
   },
   ipad: {
     title: 'iPad',

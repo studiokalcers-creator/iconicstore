@@ -28,6 +28,7 @@ import {
   INITIAL_CATEGORIES,
   getApplePresetPhoto
 } from './data/mockData';
+import { fetchSupabaseData } from './lib/supabase';
 
 const VALID_TABS = [
   'storefront', 
@@ -145,6 +146,19 @@ export default function App() {
   const [storeSettings, setStoreSettings] = useState(() => 
     safeLoad('iconicstore_settings', INITIAL_STORE_SETTINGS, val => val && typeof val === 'object')
   );
+
+  // Automatically fetch latest store settings and master products from Supabase Cloud on load
+  useEffect(() => {
+    fetchSupabaseData().then(cloudData => {
+      if (!cloudData) return;
+      if (cloudData.storeSettings) {
+        setStoreSettings(prev => ({ ...prev, ...cloudData.storeSettings }));
+      }
+      if (cloudData.masterProducts && Array.isArray(cloudData.masterProducts) && cloudData.masterProducts.length > 0) {
+        setMasterProducts(cloudData.masterProducts);
+      }
+    }).catch(() => {});
+  }, []);
 
   // Master Trade-In & Buyback Valuations State
   const [tradeInValuations, setTradeInValuations] = useState(() => 

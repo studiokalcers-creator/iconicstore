@@ -404,3 +404,44 @@ export async function syncLocalToSupabase(payload = {}) {
     return { success: false, message: 'Gagal sinkronisasi data: ' + err.message };
   }
 }
+
+/**
+ * Fetch and hydrate cloud database from Supabase on app startup
+ */
+export async function fetchSupabaseData() {
+  const client = getSupabaseClient();
+  if (!client) return null;
+
+  try {
+    const [settingsRes, mastersRes] = await Promise.all([
+      client.from('store_settings').select('data').limit(1),
+      client.from('master_products').select('*')
+    ]);
+
+    const result = {};
+
+    if (settingsRes.data && settingsRes.data[0]?.data) {
+      result.storeSettings = settingsRes.data[0].data;
+    }
+
+    if (mastersRes.data && mastersRes.data.length > 0) {
+      result.masterProducts = mastersRes.data.map(m => ({
+        id: m.id,
+        name: m.name,
+        category: m.category,
+        image: m.image,
+        baseHpp: m.price_modal,
+        baseRetail: m.price_retail,
+        baseReseller: m.price_reseller,
+        minStockAlert: m.min_stock_alert,
+        active: true
+      }));
+    }
+
+    return Object.keys(result).length > 0 ? result : null;
+  } catch (err) {
+    console.warn('Failed to fetch data from Supabase:', err);
+    return null;
+  }
+}
+
