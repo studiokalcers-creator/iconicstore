@@ -147,7 +147,7 @@ export default function App() {
     safeLoad('iconicstore_settings', INITIAL_STORE_SETTINGS, val => val && typeof val === 'object')
   );
 
-  // Automatically fetch latest store settings, master products, and physical units from Supabase Cloud on load
+  // Automatically fetch latest store settings, master products, physical units, sales, and preorders from Supabase Cloud on load
   useEffect(() => {
     fetchSupabaseData().then(cloudData => {
       if (!cloudData) return;
@@ -159,6 +159,18 @@ export default function App() {
       }
       if (cloudData.units && Array.isArray(cloudData.units) && cloudData.units.length > 0) {
         setUnits(cloudData.units);
+      }
+      if (cloudData.salesHistory && Array.isArray(cloudData.salesHistory) && cloudData.salesHistory.length > 0) {
+        setSalesHistory(cloudData.salesHistory);
+      }
+      if (cloudData.preorders && Array.isArray(cloudData.preorders) && cloudData.preorders.length > 0) {
+        setPreorders(cloudData.preorders);
+      }
+      if (cloudData.resellers && Array.isArray(cloudData.resellers) && cloudData.resellers.length > 0) {
+        setResellers(cloudData.resellers);
+      }
+      if (cloudData.branches && Array.isArray(cloudData.branches) && cloudData.branches.length > 0) {
+        setBranches(cloudData.branches);
       }
     }).catch(() => {});
   }, []);
@@ -372,6 +384,32 @@ export default function App() {
   // Handle unit addition
   const handleAddUnit = (newUnit) => {
     setUnits(prev => [newUnit, ...prev]);
+    const client = getSupabaseClient();
+    if (client) {
+      client.from('units').upsert([{
+        id: newUnit.id,
+        master_id: newUnit.masterId || null,
+        model_name: newUnit.modelName || '',
+        color: newUnit.color || '',
+        storage: newUnit.storage || '',
+        category: newUnit.category || '',
+        condition: newUnit.condition || '',
+        grade: newUnit.grade || '',
+        battery_health: typeof newUnit.batteryHealth === 'number' ? newUnit.batteryHealth : (parseInt(newUnit.batteryHealth) || null),
+        imei: newUnit.imei ? String(newUnit.imei).trim() : null,
+        serial_number: newUnit.serialNumber || '',
+        signal_origin: newUnit.signalOrigin || '',
+        signal_warranty: newUnit.signalWarranty || '',
+        store_warranty: newUnit.storeWarranty || '',
+        price_modal: newUnit.priceModal || 0,
+        price_retail: newUnit.priceRetail || 0,
+        price_reseller: newUnit.priceReseller || 0,
+        barcode_code: newUnit.barcodeCode || '',
+        status: newUnit.status || 'available',
+        branch_id: newUnit.branchId || null,
+        image: newUnit.image || ''
+      }]).catch(() => {});
+    }
   };
 
   // Handle reseller addition
@@ -432,6 +470,34 @@ export default function App() {
             : po
         )
       );
+    }
+
+    // 5. Real-time push to Supabase Cloud
+    const client = getSupabaseClient();
+    if (client) {
+      client.from('sales').upsert([{
+        id: transaction.id,
+        date: transaction.date || new Date().toISOString(),
+        branch_id: transaction.branchId || null,
+        branch_name: transaction.branchName || '',
+        pricing_mode: transaction.pricingMode || 'retail',
+        reseller_id: transaction.reseller?.id || null,
+        customer_name: transaction.customerName || '',
+        customer_phone: transaction.customerPhone || '',
+        subtotal: transaction.subtotal || 0,
+        discount_amount: transaction.discountAmount || 0,
+        total: transaction.total || 0,
+        payment_method: transaction.paymentMethod || '',
+        cash_given: transaction.cashGiven || 0,
+        change_amount: transaction.changeAmount || 0,
+        is_dropship_receipt: !!transaction.isDropshipReceipt,
+        cashier_name: transaction.cashierName || '',
+        items: transaction.items || []
+      }]).catch(() => {});
+
+      soldUnitIds.forEach(uId => {
+        client.from('units').update({ status: 'sold' }).eq('id', uId).catch(() => {});
+      });
     }
   };
 

@@ -413,10 +413,14 @@ export async function fetchSupabaseData() {
   if (!client) return null;
 
   try {
-    const [settingsRes, mastersRes, unitsRes] = await Promise.all([
+    const [settingsRes, mastersRes, unitsRes, salesRes, preordersRes, resellersRes, branchesRes] = await Promise.all([
       client.from('store_settings').select('data').limit(1),
       client.from('master_products').select('*'),
-      client.from('units').select('*')
+      client.from('units').select('*'),
+      client.from('sales').select('*').order('date', { ascending: false }),
+      client.from('preorders').select('*').order('order_date', { ascending: false }),
+      client.from('resellers').select('*'),
+      client.from('branches').select('*')
     ]);
 
     const result = {};
@@ -462,6 +466,68 @@ export async function fetchSupabaseData() {
         status: u.status,
         branchId: u.branch_id,
         image: u.image
+      }));
+    }
+
+    if (salesRes.data && salesRes.data.length > 0) {
+      result.salesHistory = salesRes.data.map(s => ({
+        id: s.id,
+        date: s.date,
+        branchId: s.branch_id,
+        branchName: s.branch_name,
+        pricingMode: s.pricing_mode,
+        resellerId: s.reseller_id,
+        customerName: s.customer_name,
+        customerPhone: s.customer_phone,
+        subtotal: s.subtotal,
+        discountAmount: s.discount_amount,
+        total: s.total,
+        paymentMethod: s.payment_method,
+        cashGiven: s.cash_given,
+        changeAmount: s.change_amount,
+        isDropshipReceipt: s.is_dropship_receipt,
+        cashierName: s.cashier_name,
+        items: s.items || []
+      }));
+    }
+
+    if (preordersRes.data && preordersRes.data.length > 0) {
+      result.preorders = preordersRes.data.map(po => ({
+        id: po.id,
+        customerName: po.customer_name,
+        customerPhone: po.customer_phone,
+        modelName: po.model_name,
+        targetSpecs: po.target_specs,
+        dpAmount: po.dp_amount,
+        estimatedTotal: po.estimated_total,
+        branchId: po.branch_id,
+        orderDate: po.order_date,
+        etaDate: po.eta_date,
+        status: po.status,
+        notes: po.notes
+      }));
+    }
+
+    if (resellersRes.data && resellersRes.data.length > 0) {
+      result.resellers = resellersRes.data.map(r => ({
+        id: r.id,
+        name: r.name,
+        shopName: r.shop_name,
+        phone: r.phone,
+        address: r.address,
+        tier: r.tier,
+        totalPurchases: r.total_spend || 0,
+        unitCount: 0
+      }));
+    }
+
+    if (branchesRes.data && branchesRes.data.length > 0) {
+      result.branches = branchesRes.data.map(b => ({
+        id: b.id,
+        name: b.name,
+        address: b.address,
+        phone: b.phone,
+        isMain: b.is_main
       }));
     }
 
