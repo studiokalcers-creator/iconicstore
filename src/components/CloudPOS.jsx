@@ -25,7 +25,11 @@ import {
   DollarSign,
   Clock,
   Receipt,
-  Calendar
+  Calendar,
+  Package,
+  ShoppingCart,
+  Sparkles,
+  Smartphone
 } from 'lucide-react';
 import { formatRupiah, playBarcodeBeep } from '../utils/barcodePdfEngine';
 import confetti from 'canvas-confetti';
@@ -44,14 +48,24 @@ export default function CloudPOS({
   const [pricingMode, setPricingMode] = useState('retail');
   const [selectedResellerId, setSelectedResellerId] = useState('');
   
+  // Mobile responsive layout tab: 'catalog' | 'cart'
+  const [mobilePosTab, setMobilePosTab] = useState('catalog');
+
   // Cart state
   const [cart, setCart] = useState([]);
   const [discountAmount, setDiscountAmount] = useState(0);
   const [activePreorder, setActivePreorder] = useState(null);
   const [barcodeInput, setBarcodeInput] = useState('');
   
-  // Modals state
+  // Real Camera WebRTC Scanner State
   const [isCameraScannerOpen, setIsCameraScannerOpen] = useState(false);
+  const [cameraError, setCameraError] = useState('');
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const [cameraManualCode, setCameraManualCode] = useState('');
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+  
+  // Modals state
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isSupervisorModalOpen, setIsSupervisorModalOpen] = useState(false);
   const [supervisorPin, setSupervisorPin] = useState('');
@@ -178,6 +192,85 @@ export default function CloudPOS({
     setBarcodeInput('');
     showToast(`${unit.modelName} berhasil dimasukkan ke keranjang kasir.`, 'success', 'Scan Berhasil');
   };
+
+  // Live Camera WebRTC Scanner with native BarcodeDetector for iOS Safari & Mobile
+  useEffect(() => {
+    let detectorTimer = null;
+
+    if (isCameraScannerOpen) {
+      setCameraError('');
+      setIsCameraActive(false);
+
+      const initCamera = async () => {
+        try {
+          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            setCameraError('Kamera tidak didukung pada browser ini. Silakan gunakan tombol Uji Barcode Cepat di bawah.');
+            return;
+          }
+
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } }
+          });
+
+          streamRef.current = stream;
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+            videoRef.current.setAttribute('playsinline', 'true');
+            await videoRef.current.play();
+            setIsCameraActive(true);
+          }
+
+          // Check native BarcodeDetector support (iOS Safari 17+, Chromium)
+          if ('BarcodeDetector' in window) {
+            try {
+              const formats = await window.BarcodeDetector.getSupportedFormats();
+              const validFormats = formats.length > 0 ? formats : ['code_128', 'qr_code', 'ean_13', 'code_39'];
+              const detector = new window.BarcodeDetector({ formats: validFormats });
+
+              detectorTimer = setInterval(async () => {
+                if (!videoRef.current || videoRef.current.readyState < 2) return;
+                try {
+                  const detected = await detector.detect(videoRef.current);
+                  if (detected && detected.length > 0) {
+                    const rawVal = detected[0].rawValue.trim();
+                    const matched = availableUnits.find(u => 
+                      u.barcodeCode.toUpperCase() === rawVal.toUpperCase() ||
+                      u.imei === rawVal ||
+                      u.serialNumber.toUpperCase() === rawVal.toUpperCase()
+                    );
+                    if (matched) {
+                      clearInterval(detectorTimer);
+                      addToCart(matched);
+                      setIsCameraScannerOpen(false);
+                    }
+                  }
+                } catch (detectErr) {}
+              }, 300);
+            } catch (detectorErr) {}
+          }
+        } catch (err) {
+          console.warn('Camera stream error:', err);
+          setCameraError('Izin akses kamera belum diberikan atau diblokir Safari. Anda dapat memilih unit langsung di bawah untuk uji coba barcode.');
+        }
+      };
+
+      initCamera();
+    } else {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop());
+        streamRef.current = null;
+      }
+      setIsCameraActive(false);
+    }
+
+    return () => {
+      if (detectorTimer) clearInterval(detectorTimer);
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop());
+        streamRef.current = null;
+      }
+    };
+  }, [isCameraScannerOpen, availableUnits]);
 
   // Remove unit from cart
   const removeFromCart = (unitId) => {
@@ -327,7 +420,7 @@ export default function CloudPOS({
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--text)', paddingBottom: '60px' }}>
       
-      <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '24px 32px' }}>
+      <div className="responsive-container">
 
         {/* Top Control Bar: Mode Penjualan & Shift Status */}
         <div style={{
@@ -468,16 +561,44 @@ export default function CloudPOS({
 
         </div>
 
+        {/* Mobile Segmented Switcher (<900px only on iPhone/iPad) */}
+        <div className="pos-mobile-tabs">
+          <button
+            type="button"
+            onClick={() => setMobilePosTab('catalog')}
+            className={`pos-mobile-tab-btn ${mobilePosTab === 'catalog' ? 'active' : ''}`}
+          >
+            <Package style={{ width: '15px', height: '15px' }} />
+            <span>Scan &amp; Katalog ({availableUnits.length})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobilePosTab('cart')}
+            className={`pos-mobile-tab-btn ${mobilePosTab === 'cart' ? 'active' : ''}`}
+            style={{ position: 'relative' }}
+          >
+            <ShoppingCart style={{ width: '15px', height: '15px' }} />
+            <span>Keranjang Kasir ({cart.length})</span>
+            {cart.length > 0 && (
+              <span style={{
+                background: '#0A84FF',
+                color: '#FFFFFF',
+                borderRadius: '999px',
+                padding: '1px 6px',
+                fontSize: '10px',
+                fontWeight: '800'
+              }}>
+                {cart.length}
+              </span>
+            )}
+          </button>
+        </div>
+
         {/* Main 2-Column POS Layout */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'minmax(0, 1.6fr) minmax(360px, 1fr)',
-          gap: '24px',
-          alignItems: 'start'
-        }}>
+        <div className="pos-layout-grid">
           
           {/* LEFT COLUMN: Barcode Scanner & Ready Stock Catalog */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div className={`pos-column-catalog ${mobilePosTab === 'cart' ? 'pos-hidden-mobile' : ''}`} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             
             {/* Barcode Scanner Box */}
             <div style={{
@@ -486,8 +607,8 @@ export default function CloudPOS({
               borderRadius: '14px',
               padding: '16px'
             }}>
-              <form onSubmit={handleBarcodeSubmit} style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                <div style={{ position: 'relative', flex: 1 }}>
+              <form onSubmit={handleBarcodeSubmit} style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <div style={{ position: 'relative', flex: '1 1 200px', minWidth: '180px' }}>
                   <Barcode style={{
                     width: '18px',
                     height: '18px',
@@ -519,46 +640,109 @@ export default function CloudPOS({
                   />
                 </div>
 
-                <button
-                  type="submit"
-                  style={{
-                    background: 'var(--surface-2)',
-                    border: '1px solid var(--border)',
-                    color: 'var(--text)',
-                    padding: '0 18px',
-                    height: '42px',
-                    borderRadius: '8px',
-                    fontSize: '13px',
-                    fontWeight: '600',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Input
-                </button>
+                <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                  <button
+                    type="submit"
+                    style={{
+                      background: 'var(--surface-2)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--text)',
+                      padding: '0 16px',
+                      height: '42px',
+                      borderRadius: '8px',
+                      fontSize: '13px',
+                      fontWeight: '600',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Input
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => setIsCameraScannerOpen(true)}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    background: 'rgba(10, 132, 255, 0.15)',
-                    border: '1px solid rgba(10, 132, 255, 0.3)',
-                    color: 'var(--accent)',
-                    padding: '0 16px',
-                    height: '42px',
-                    borderRadius: '8px',
-                    fontSize: '13px',
-                    fontWeight: '600',
-                    cursor: 'pointer'
-                  }}
-                  title="Buka Kamera iPad/iPhone untuk Scan Barcode"
-                >
-                  <Camera style={{ width: '15px', height: '15px' }} />
-                  <span>Kamera iOS</span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsCameraScannerOpen(true)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      background: 'rgba(10, 132, 255, 0.15)',
+                      border: '1px solid rgba(10, 132, 255, 0.3)',
+                      color: 'var(--accent)',
+                      padding: '0 14px',
+                      height: '42px',
+                      borderRadius: '8px',
+                      fontSize: '13px',
+                      fontWeight: '600',
+                      cursor: 'pointer'
+                    }}
+                    title="Buka Kamera iPad/iPhone untuk Scan Barcode"
+                  >
+                    <Camera style={{ width: '15px', height: '15px' }} />
+                    <span>Kamera iOS</span>
+                  </button>
+                </div>
               </form>
+
+              {/* Quick Barcode Test Chips for iPhone Testing */}
+              <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Sparkles style={{ width: '13px', height: '13px', color: 'var(--accent)' }} />
+                    <span style={{ fontSize: '11px', color: 'var(--text)', fontWeight: '700' }}>
+                      ⚡ Tap Barcode untuk Uji Coba Cepat di HP:
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '10px', color: 'var(--text-dim)' }}>
+                    {availableUnits.length} Unit Ready
+                  </span>
+                </div>
+
+                <div style={{
+                  display: 'flex',
+                  gap: '8px',
+                  overflowX: 'auto',
+                  WebkitOverflowScrolling: 'touch',
+                  paddingBottom: '4px',
+                  scrollbarWidth: 'none'
+                }}>
+                  {availableUnits.slice(0, 10).map(u => {
+                    const inCart = cart.some(c => c.id === u.id);
+                    return (
+                      <button
+                        key={u.id}
+                        type="button"
+                        disabled={inCart}
+                        onClick={() => addToCart(u)}
+                        style={{
+                          flexShrink: 0,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          background: inCart ? 'rgba(255,255,255,0.03)' : 'var(--surface-2)',
+                          border: inCart ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(10, 132, 255, 0.4)',
+                          color: inCart ? 'var(--text-dim)' : 'var(--text)',
+                          padding: '6px 12px',
+                          borderRadius: '8px',
+                          fontSize: '11px',
+                          cursor: inCart ? 'not-allowed' : 'pointer',
+                          opacity: inCart ? 0.45 : 1,
+                          transition: 'all .15s ease'
+                        }}
+                        title={`Tap untuk scan barcode ${u.barcodeCode}`}
+                      >
+                        <Barcode style={{ width: '13px', height: '13px', color: inCart ? 'var(--text-dim)' : 'var(--accent)' }} />
+                        <span style={{ fontFamily: 'var(--font-mono)', fontWeight: '700', color: inCart ? 'inherit' : 'var(--accent)' }}>
+                          {u.barcodeCode}
+                        </span>
+                        <span style={{ color: 'var(--text-dim)', fontSize: '10px' }}>
+                          ({u.modelName.replace('Apple ', '').replace('iPhone ', 'iP ')})
+                        </span>
+                        {inCart && <Check style={{ width: '11px', height: '11px', color: '#30D158' }} />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
 
             {/* Ready Stock Catalog Cards */}
@@ -690,19 +874,47 @@ export default function CloudPOS({
 
           </div>
 
-          {/* RIGHT COLUMN: Sticky Active Cart & Register Summary */}
-          <div style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: '16px',
-            padding: '20px',
-            position: 'sticky',
-            top: '20px',
-            boxShadow: '0 10px 30px rgba(0,0,0,0.4)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '16px'
-          }}>
+          {/* RIGHT COLUMN: Active Cart & Register Summary */}
+          <div 
+            className={`pos-column-cart ${mobilePosTab === 'catalog' ? 'pos-hidden-mobile' : ''}`}
+            style={{
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderRadius: '16px',
+              padding: '20px',
+              position: 'sticky',
+              top: '20px',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.4)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px'
+            }}
+          >
+            {/* Mobile Switch Back Button */}
+            <button
+              type="button"
+              onClick={() => {
+                setMobilePosTab('catalog');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                background: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid var(--border)',
+                color: 'var(--text)',
+                padding: '9px 14px',
+                borderRadius: '8px',
+                fontSize: '12.5px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                marginBottom: '4px'
+              }}
+            >
+              <ArrowRight style={{ width: '14px', height: '14px', transform: 'rotate(180deg)' }} />
+              <span>← Tambah Unit / Scan Barcode Lain</span>
+            </button>
             
             {/* Cart Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '14px' }}>
@@ -952,12 +1164,32 @@ export default function CloudPOS({
 
         </div>
 
+        {/* Floating Bottom Cart Bar for Mobile (Visible when in catalog tab with items) */}
+        {cart.length > 0 && mobilePosTab === 'catalog' && (
+          <div 
+            className="pos-floating-cart-bar"
+            onClick={() => {
+              setMobilePosTab('cart');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <ShoppingCart style={{ width: '18px', height: '18px' }} />
+              <span>{cart.length} Unit ({formatRupiah(total)})</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#061423', color: '#FFFFFF', padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: '700' }}>
+              <span>Buka Kasir</span>
+              <ArrowRight style={{ width: '13px', height: '13px' }} />
+            </div>
+          </div>
+        )}
+
       </div>
 
-      {/* MODAL 1: Kamera Scanner Simulator / WebRTC */}
+      {/* MODAL 1: Kamera Barcode Scanner iOS Real WebRTC */}
       {isCameraScannerOpen && (
         <div className="modal-backdrop">
-          <div className="modal-content" style={{ maxWidth: '440px', padding: '24px', background: 'var(--surface)', border: '1px solid var(--border)' }}>
+          <div className="modal-content" style={{ maxWidth: '440px', padding: '20px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '16px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: '12px', marginBottom: '16px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Camera style={{ width: '16px', height: '16px', color: 'var(--accent)' }} />
@@ -966,49 +1198,147 @@ export default function CloudPOS({
               <button 
                 type="button"
                 onClick={() => setIsCameraScannerOpen(false)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer' }}
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', padding: '4px' }}
               >
-                <X style={{ width: '16px', height: '16px' }} />
+                <X style={{ width: '18px', height: '18px' }} />
               </button>
             </div>
 
-            {/* Viewfinder Graphic */}
+            {/* Viewfinder Video Frame */}
             <div style={{
-              aspectRatio: '16/9',
+              width: '100%',
+              aspectRatio: '4/3',
               background: '#050507',
-              borderRadius: '10px',
+              borderRadius: '12px',
+              overflow: 'hidden',
+              position: 'relative',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              border: '2px dashed var(--border)',
-              marginBottom: '16px',
-              position: 'relative'
+              border: '1px solid var(--border)',
+              marginBottom: '14px'
             }}>
+              <video 
+                ref={videoRef}
+                playsInline
+                autoPlay
+                muted
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  display: isCameraActive ? 'block' : 'none'
+                }}
+              />
+
+              {/* Laser Scan Guide Overlay */}
               <div style={{
-                width: '180px',
-                height: '90px',
-                border: '2px solid rgba(10, 132, 255, 0.8)',
-                borderRadius: '8px',
-                position: 'relative',
+                position: 'absolute',
+                inset: 0,
                 display: 'flex',
+                flexDirection: 'column',
                 alignItems: 'center',
-                justifyContent: 'center'
+                justifyContent: 'center',
+                pointerEvents: 'none',
+                background: isCameraActive ? 'transparent' : 'rgba(0,0,0,0.6)'
               }}>
-                <div style={{ width: '100%', height: '2px', background: '#FF453A', boxShadow: '0 0 8px #FF453A' }}></div>
+                <div style={{
+                  width: '200px',
+                  height: '110px',
+                  border: '2px solid rgba(10, 132, 255, 0.8)',
+                  borderRadius: '10px',
+                  position: 'relative',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 0 20px rgba(10, 132, 255, 0.25)'
+                }}>
+                  <div style={{
+                    width: '100%',
+                    height: '2px',
+                    background: '#FF453A',
+                    boxShadow: '0 0 10px #FF453A'
+                  }}></div>
+                </div>
+                <span style={{ fontSize: '11px', color: '#FFFFFF', marginTop: '10px', textShadow: '0 1px 4px rgba(0,0,0,0.8)', fontWeight: '600' }}>
+                  {isCameraActive ? 'Arahkan ke barcode / stiker unit Apple' : 'Mengaktifkan sensor kamera...'}
+                </span>
               </div>
-              <span style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '12px' }}>
-                Arahkan kamera ke stiker barcode unit
-              </span>
             </div>
 
-            {/* Quick Test Barcode Clicker */}
+            {cameraError && (
+              <div style={{
+                background: 'rgba(255, 69, 58, 0.1)',
+                border: '1px solid rgba(255, 69, 58, 0.3)',
+                borderRadius: '8px',
+                padding: '8px 12px',
+                marginBottom: '12px',
+                fontSize: '11.5px',
+                color: '#FF6961'
+              }}>
+                {cameraError}
+              </div>
+            )}
+
+            {/* Manual Code Input inside Camera Modal */}
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              if (!cameraManualCode.trim()) return;
+              const clean = cameraManualCode.trim().toUpperCase();
+              const found = availableUnits.find(u => 
+                u.barcodeCode.toUpperCase() === clean || 
+                u.imei === clean || 
+                u.serialNumber.toUpperCase() === clean
+              );
+              if (found) {
+                addToCart(found);
+                setIsCameraScannerOpen(false);
+                setCameraManualCode('');
+              } else {
+                showToast(`Barcode / IMEI "${cameraManualCode}" tidak ditemukan.`, 'error');
+              }
+            }} style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
+              <input 
+                type="text" 
+                placeholder="Atau ketik/paste kode barcode..." 
+                value={cameraManualCode} 
+                onChange={(e) => setCameraManualCode(e.target.value)}
+                style={{
+                  flex: 1,
+                  background: 'var(--surface-2)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text)',
+                  fontSize: '13px',
+                  fontFamily: 'var(--font-mono)',
+                  borderRadius: '8px',
+                  padding: '9px 12px'
+                }}
+              />
+              <button 
+                type="submit" 
+                style={{
+                  background: 'var(--accent)',
+                  color: 'var(--accent-ink)',
+                  border: 'none',
+                  padding: '0 16px',
+                  borderRadius: '8px',
+                  fontSize: '12.5px',
+                  fontWeight: '700',
+                  cursor: 'pointer'
+                }}
+              >
+                Scan
+              </button>
+            </form>
+
+            {/* Quick Tap Unit Barcode Selector */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <span style={{ fontSize: '11px', color: 'var(--text-dim)', fontWeight: '600' }}>
-                Uji Coba Cepat (Pilih Unit untuk di-scan):
+                Simulasi Scan Barcode (Tap untuk Uji Coba):
               </span>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '160px', overflowY: 'auto' }}>
-                {availableUnits.slice(0, 4).map(u => (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '140px', overflowY: 'auto' }}>
+                {availableUnits.slice(0, 5).map(u => (
                   <button
                     key={u.id}
                     type="button"
@@ -1035,7 +1365,7 @@ export default function CloudPOS({
               </div>
             </div>
 
-            <div style={{ marginTop: '16px', paddingTop: '14px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end' }}>
+            <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end' }}>
               <button
                 type="button"
                 onClick={() => setIsCameraScannerOpen(false)}

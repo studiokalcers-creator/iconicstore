@@ -2048,7 +2048,7 @@ Terima kasih atas kepercayaan Kakak berbelanja di iConicstore.`;
       
       {/* Top Banner Header for Executive Owner */}
       <div style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
-        <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '24px 32px' }}>
+        <div className="portal-container">
           
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
             <div>
@@ -2156,15 +2156,20 @@ Terima kasih atas kepercayaan Kakak berbelanja di iConicstore.`;
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '12px' }}>
               
               {/* Category Segmented Capsule */}
-              <div style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                background: 'rgba(255, 255, 255, 0.04)',
-                border: '1px solid var(--border)',
-                borderRadius: '10px',
-                padding: '4px',
-                gap: '4px'
-              }}>
+              <div 
+                className="mobile-touch-scroll"
+                style={{
+                  alignItems: 'center',
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '10px',
+                  padding: '4px',
+                  gap: '4px',
+                  maxWidth: '100%',
+                  overflowX: 'auto',
+                  WebkitOverflowScrolling: 'touch'
+                }}
+              >
                 {MENU_GROUPS.map(group => {
                   const Icon = group.icon;
                   const isGroupActive = selectedCategory === group.id;
@@ -2177,6 +2182,8 @@ Terima kasih atas kepercayaan Kakak berbelanja di iConicstore.`;
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
+                        flexShrink: 0,
+                        whiteSpace: 'nowrap',
                         gap: '8px',
                         padding: '7px 14px',
                         borderRadius: '7px',
@@ -2190,8 +2197,8 @@ Terima kasih atas kepercayaan Kakak berbelanja di iConicstore.`;
                         boxShadow: isGroupActive ? '0 2px 8px rgba(0,0,0,0.25)' : 'none'
                       }}
                     >
-                      <Icon style={{ width: '14px', height: '14px', color: isGroupActive ? 'var(--accent)' : 'var(--text-dim)' }} />
-                      <span>{group.label}</span>
+                      <Icon style={{ width: '14px', height: '14px', color: isGroupActive ? 'var(--accent)' : 'var(--text-dim)', flexShrink: 0 }} />
+                      <span style={{ whiteSpace: 'nowrap' }}>{group.label}</span>
                       {group.badge && (
                         <span style={{ fontSize: '10px', background: '#FF453A', color: '#FFFFFF', padding: '1px 6px', borderRadius: '999px', fontWeight: '800' }}>
                           {group.badge}
@@ -2292,7 +2299,7 @@ Terima kasih atas kepercayaan Kakak berbelanja di iConicstore.`;
             {menuViewMode === 'grid' && (
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))',
                 gap: '12px',
                 background: 'rgba(255, 255, 255, 0.02)',
                 border: '1px solid var(--border)',
@@ -2390,7 +2397,7 @@ Terima kasih atas kepercayaan Kakak berbelanja di iConicstore.`;
       </div>
 
       {/* Main Content Area */}
-      <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '28px 32px' }}>
+      <div className="portal-container" style={{ paddingTop: '20px', paddingBottom: '32px' }}>
         
         {/* ========================================================================= */}
         {/* TAB 1: ANALISIS PENJUALAN & MARGIN                                        */}

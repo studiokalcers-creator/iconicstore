@@ -110,7 +110,7 @@ export default function HeaderNav({
       <header style={{ borderBottom: '1px solid var(--border)' }}>
         
         {/* Top Brand Row */}
-        <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '20px 32px 0', display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="responsive-container" style={{ paddingBottom: 0, display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'space-between', alignItems: 'center' }}>
           
           {/* Logo and Brand Title */}
           <div 
@@ -194,7 +194,7 @@ export default function HeaderNav({
         </div>
 
         {/* Navigation Bar Row */}
-        <nav style={{ maxWidth: '1280px', margin: '0 auto', padding: '16px 32px', display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }} aria-label="Navigasi">
+        <nav className="responsive-container mobile-touch-nav" style={{ paddingTop: '10px', paddingBottom: '10px', gap: '8px' }} aria-label="Navigasi">
           
           {/* CUSTOMER MODE (Public Visitor - Kasir & Barcode strictly HIDDEN) */}
           {!isStaffTab ? (

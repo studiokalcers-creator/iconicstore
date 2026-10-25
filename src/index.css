@@ -1319,3 +1319,140 @@ input, select {
     color: #000000;
   }
 }
+
+/* ==========================================================================
+   Mobile & iOS Safari Optimization Rules
+   ========================================================================== */
+
+/* Prevent iOS Safari from auto-zooming when tapping inputs */
+@media (max-width: 768px) {
+  input:not([type="checkbox"]):not([type="radio"]), 
+  select, 
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Responsive Container */
+.responsive-container,
+.portal-container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 24px 32px;
+}
+
+@media (max-width: 768px) {
+  .responsive-container,
+  .portal-container {
+    padding: 14px 14px !important;
+  }
+}
+
+/* Touch-friendly horizontal scrolling for menu capsules & tables */
+.mobile-touch-scroll {
+  display: flex !important;
+  max-width: 100% !important;
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  scrollbar-width: none !important;
+}
+.mobile-touch-scroll::-webkit-scrollbar {
+  display: none !important;
+}
+.mobile-touch-scroll > * {
+  flex-shrink: 0 !important;
+}
+
+/* POS Layout Grid: Responsive 2-column or stacked */
+.pos-layout-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(360px, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.pos-mobile-tabs {
+  display: none;
+}
+
+.pos-floating-cart-bar {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .pos-layout-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 16px !important;
+  }
+
+  .pos-mobile-tabs {
+    display: flex !important;
+    gap: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 4px;
+    border-radius: 12px;
+    margin-bottom: 16px;
+  }
+
+  .pos-mobile-tab-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-dim);
+    background: transparent;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .pos-mobile-tab-btn.active {
+    background: var(--surface-2);
+    color: var(--text);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+
+  .pos-column-catalog {
+    width: 100%;
+  }
+
+  .pos-column-catalog.pos-hidden-mobile {
+    display: none !important;
+  }
+
+  .pos-column-cart {
+    width: 100%;
+    position: static !important;
+  }
+
+  .pos-column-cart.pos-hidden-mobile {
+    display: none !important;
+  }
+
+  .pos-floating-cart-bar {
+    display: flex !important;
+    position: fixed;
+    bottom: 16px;
+    left: 14px;
+    right: 14px;
+    z-index: 100;
+    background: #0A84FF;
+    color: #061423;
+    padding: 12px 18px;
+    border-radius: 14px;
+    box-shadow: 0 10px 30px rgba(10, 132, 255, 0.45);
+    align-items: center;
+    justify-content: space-between;
+    font-weight: 700;
+    cursor: pointer;
+  }
+}
+

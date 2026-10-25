@@ -284,9 +284,13 @@ export default function BarcodeGenerator({
 
           </div>
 
-          {/* Full Width Table without Any Horizontal Scrollbar */}
-          <div className="border border-white/10 rounded-xl overflow-hidden">
-            <table className="w-full text-left text-xs" style={{ width: '100%', borderCollapse: 'collapse' }}>
+          {/* Smooth Scrollable Table on Mobile & Touch Screen */}
+          <div className="border border-white/10 rounded-xl overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch', maxWidth: '100%' }}>
+            <div className="md:hidden px-3 py-2 bg-neutral-900/90 border-b border-white/10 text-[11px] text-neutral-400 flex items-center justify-between">
+              <span>👉 Geser tabel ke kanan untuk melihat IMEI &amp; Barcode</span>
+              <span className="text-blue-400 font-semibold">{filteredUnits.length} unit</span>
+            </div>
+            <table className="w-full text-left text-xs tidy-table" style={{ width: '100%', minWidth: '780px', borderCollapse: 'collapse' }}>
               <thead className="bg-neutral-950 border-b border-white/10 text-neutral-400 uppercase text-[10px] tracking-wider">
                 <tr>
                   <th style={{ width: '40px', padding: '14px 12px', textAlign: 'center', whiteSpace: 'nowrap' }}>
