@@ -33,7 +33,7 @@ export default function HeaderNav({
   const customerNav = [
     { 
       id: 'storefront', 
-      label: 'Katalog Produk', 
+      label: 'Beranda', 
       onClick: () => {
         setCurrentTab('storefront');
         window.scrollTo({ top: 0, behavior: 'smooth' });

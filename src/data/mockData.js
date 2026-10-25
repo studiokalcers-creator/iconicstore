@@ -666,6 +666,99 @@ export const INITIAL_STORE_SETTINGS = {
   // QRIS Settings
   qrisMerchantName: 'iConicstore Official',
   qrisNmid: 'ID1029384918273',
-  qrisImage: null // Custom QR Code image data URL (base64)
+  qrisImage: null, // Custom QR Code image data URL (base64)
+  // Storefront Hero Banners Slider Settings
+  heroBanners: [
+    {
+      id: 'banner-1',
+      title: 'Pre-Order iPhone 16 Pro Series',
+      imageUrl: 'https://iosstore.id/assets/pagebuilder/media/2026/08/pb_20260826_141133_20403e9ff9.png',
+      targetTab: 'pricelist',
+      category: 'iphone',
+      showText: false
+    },
+    {
+      id: 'banner-2',
+      title: 'Garansi s/d 36 Bulan & Sinyal Aktif',
+      imageUrl: 'https://iosstore.id/assets/pagebuilder/media/2026/08/pb_20260822_100618_1eee45373b.png',
+      targetTab: 'warranty',
+      category: null,
+      showText: false
+    },
+    {
+      id: 'banner-3',
+      title: 'Program Tukar Tambah & Cicilan 0%',
+      imageUrl: 'https://iosstore.id/assets/pagebuilder/media/2026/10/pb_20261002_152251_e8663f0e9f.png',
+      targetTab: 'tradein',
+      category: null,
+      showText: false
+    }
+  ],
+  // Storefront Visual Category Cards (6 Cards on Beranda)
+  categoryCards: {
+    iphone: {
+      title: 'iPhone',
+      subtitle: 'Smartphone Apple iOS',
+      image: 'https://iosstore.id/assets/pagebuilder/media/2026/07/pb_20260723_014144_9ed27b199b.png'
+    },
+    ipad: {
+      title: 'iPad',
+      subtitle: 'Tablet serbaguna & Pro',
+      image: 'https://iosstore.id/assets/pagebuilder/media/2026/07/pb_20260723_014151_8bbf5a7e63.png'
+    },
+    macbook: {
+      title: 'MacBook',
+      subtitle: 'Laptop Apple M-Series',
+      image: 'https://iosstore.id/assets/pagebuilder/media/2026/07/pb_20260723_014158_03273f7226.png'
+    },
+    watch: {
+      title: 'Apple Watch',
+      subtitle: 'Jam pintar Apple watchOS',
+      image: 'https://iosstore.id/assets/pagebuilder/media/2026/07/pb_20260723_014204_af17e5a88f.png'
+    },
+    audio: {
+      title: 'AirPods',
+      subtitle: 'Audio nirkabel & Spatial',
+      image: 'https://iosstore.id/assets/pagebuilder/media/2026/07/pb_20260723_014236_b6ad17f6ce.png'
+    },
+    accessories: {
+      title: 'Aksesoris',
+      subtitle: 'Pelengkap perangkat original',
+      image: 'https://iosstore.id/assets/pagebuilder/media/2026/07/pb_20260723_014240_410329950c.png'
+    }
+  }
+};
+
+export const DEFAULT_CATEGORY_CARDS = {
+  iphone: {
+    title: 'iPhone',
+    subtitle: 'Smartphone Apple iOS',
+    image: 'https://iosstore.id/assets/pagebuilder/media/2026/07/pb_20260723_014144_9ed27b199b.png'
+  },
+  ipad: {
+    title: 'iPad',
+    subtitle: 'Tablet serbaguna & Pro',
+    image: 'https://iosstore.id/assets/pagebuilder/media/2026/07/pb_20260723_014151_8bbf5a7e63.png'
+  },
+  macbook: {
+    title: 'MacBook',
+    subtitle: 'Laptop Apple M-Series',
+    image: 'https://iosstore.id/assets/pagebuilder/media/2026/07/pb_20260723_014158_03273f7226.png'
+  },
+  watch: {
+    title: 'Apple Watch',
+    subtitle: 'Jam pintar Apple watchOS',
+    image: 'https://iosstore.id/assets/pagebuilder/media/2026/07/pb_20260723_014204_af17e5a88f.png'
+  },
+  audio: {
+    title: 'AirPods',
+    subtitle: 'Audio nirkabel & Spatial',
+    image: 'https://iosstore.id/assets/pagebuilder/media/2026/07/pb_20260723_014236_b6ad17f6ce.png'
+  },
+  accessories: {
+    title: 'Aksesoris',
+    subtitle: 'Pelengkap perangkat original',
+    image: 'https://iosstore.id/assets/pagebuilder/media/2026/07/pb_20260723_014240_410329950c.png'
+  }
 };
 

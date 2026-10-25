@@ -70,7 +70,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { formatRupiah } from '../utils/formatters';
-import { INITIAL_STORE_SETTINGS, INITIAL_TRADE_IN_VALUATIONS, getApplePresetPhoto } from '../data/mockData';
+import { INITIAL_STORE_SETTINGS, INITIAL_TRADE_IN_VALUATIONS, getApplePresetPhoto, DEFAULT_CATEGORY_CARDS } from '../data/mockData';
 import { showToast } from './AppleAlertToast';
 import MasterPhotoField from './MasterPhotoField';
 import { 
@@ -196,6 +196,284 @@ export default function OwnerPortal({
   const [qrisNmidInput, setQrisNmidInput] = useState(storeSettings?.qrisNmid || 'ID1029384918273');
   const [qrisSuccess, setQrisSuccess] = useState('');
   const [qrisError, setQrisError] = useState('');
+
+  // Storefront Hero Banner Slider State
+  const [bannersList, setBannersList] = useState(() => 
+    storeSettings?.heroBanners || INITIAL_STORE_SETTINGS.heroBanners || []
+  );
+  const [newBannerTitle, setNewBannerTitle] = useState('');
+  const [newBannerImage, setNewBannerImage] = useState('');
+  const [newBannerTarget, setNewBannerTarget] = useState('pricelist');
+  const [newBannerCategory, setNewBannerCategory] = useState('iphone');
+  const [newBannerShowText, setNewBannerShowText] = useState(false);
+  const [bannerSuccess, setBannerSuccess] = useState('');
+  const [bannerError, setBannerError] = useState('');
+
+  useEffect(() => {
+    if (storeSettings?.heroBanners) {
+      setBannersList(storeSettings.heroBanners);
+    }
+  }, [storeSettings]);
+
+  // Storefront Visual Category Cards State (6 Kategori di Beranda)
+  const [categoryCardsSettings, setCategoryCardsSettings] = useState(() => 
+    storeSettings?.categoryCards || DEFAULT_CATEGORY_CARDS
+  );
+  const [editingCategoryCard, setEditingCategoryCard] = useState(null); // { id, title, subtitle, image }
+  const [catCardError, setCatCardError] = useState('');
+  const [catCardSuccess, setCatCardSuccess] = useState('');
+
+  useEffect(() => {
+    if (storeSettings?.categoryCards) {
+      setCategoryCardsSettings(storeSettings.categoryCards);
+    }
+  }, [storeSettings]);
+
+  const handleBannerUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setBannerError('File harus berupa gambar (PNG, JPG, WEBP).');
+      return;
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      setBannerError('Ukuran gambar maksimal 4MB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setNewBannerImage(event.target.result);
+      setBannerError('');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleAddBanner = (e) => {
+    e.preventDefault();
+    if (!newBannerImage.trim()) {
+      setBannerError('Harap masukkan URL gambar atau unggah file banner terlebih dahulu.');
+      return;
+    }
+    const newBanner = {
+      id: `banner-${Date.now()}`,
+      title: newBannerTitle.trim() || `Promo Banner ${bannersList.length + 1}`,
+      imageUrl: newBannerImage.trim(),
+      targetTab: newBannerTarget,
+      category: newBannerTarget === 'pricelist' ? newBannerCategory : null,
+      showText: newBannerShowText
+    };
+    const updated = [...bannersList, newBanner];
+    setBannersList(updated);
+    if (onUpdateStoreSettings) {
+      onUpdateStoreSettings({ heroBanners: updated });
+    }
+    setNewBannerTitle('');
+    setNewBannerImage('');
+    setNewBannerShowText(false);
+    setBannerError('');
+    setBannerSuccess('Banner baru berhasil ditambahkan dan disimpan!');
+    showToast('Banner promosi baru berhasil dipasang di Beranda!', 'success');
+  };
+
+  const handleDeleteBanner = (bannerId) => {
+    const updated = bannersList.filter(b => b.id !== bannerId);
+    setBannersList(updated);
+    if (onUpdateStoreSettings) {
+      onUpdateStoreSettings({ heroBanners: updated });
+    }
+    setBannerSuccess('Banner berhasil dihapus!');
+    showToast('Banner berhasil dihapus dari Beranda.', 'success');
+  };
+
+  // Editing Banner State
+  const [editingBanner, setEditingBanner] = useState(null);
+
+  const handleToggleBannerActive = (bannerId) => {
+    const updated = bannersList.map(b => {
+      if (b.id === bannerId) {
+        const nextActive = b.active === false ? true : false;
+        return { ...b, active: nextActive };
+      }
+      return b;
+    });
+    setBannersList(updated);
+    if (onUpdateStoreSettings) {
+      onUpdateStoreSettings({ heroBanners: updated });
+    }
+    const currentBanner = updated.find(b => b.id === bannerId);
+    const isNowActive = currentBanner?.active !== false;
+    showToast(
+      isNowActive 
+        ? `Banner "${currentBanner?.title}" telah diaktifkan di Beranda.` 
+        : `Banner "${currentBanner?.title}" dinonaktifkan (tidak tayang di Beranda).`,
+      isNowActive ? 'success' : 'info'
+    );
+  };
+
+  const handleStartEditBanner = (banner) => {
+    setEditingBanner({
+      ...banner,
+      title: banner.title || '',
+      imageUrl: banner.imageUrl || banner.bg || '',
+      targetTab: banner.targetTab || 'pricelist',
+      category: banner.category || 'iphone',
+      showText: !!banner.showText,
+      active: banner.active !== false
+    });
+  };
+
+  const handleEditBannerUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      showToast('File harus berupa gambar (PNG, JPG, WEBP).', 'warning');
+      return;
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      showToast('Ukuran gambar maksimal 4MB.', 'warning');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setEditingBanner(prev => ({ ...prev, imageUrl: event.target.result }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSaveEditBanner = (e) => {
+    e.preventDefault();
+    if (!editingBanner || !editingBanner.imageUrl.trim()) {
+      showToast('Harap isi URL gambar atau unggah file banner.', 'warning');
+      return;
+    }
+    const updated = bannersList.map(b => {
+      if (b.id === editingBanner.id) {
+        return {
+          ...b,
+          title: editingBanner.title.trim() || b.title,
+          imageUrl: editingBanner.imageUrl.trim(),
+          targetTab: editingBanner.targetTab,
+          category: editingBanner.targetTab === 'pricelist' ? editingBanner.category : null,
+          showText: editingBanner.showText,
+          active: editingBanner.active !== false
+        };
+      }
+      return b;
+    });
+    setBannersList(updated);
+    if (onUpdateStoreSettings) {
+      onUpdateStoreSettings({ heroBanners: updated });
+    }
+    setEditingBanner(null);
+    showToast('Perubahan banner berhasil disimpan!', 'success');
+  };
+
+  const handleMoveBanner = (index, direction) => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= bannersList.length) return;
+    const updated = [...bannersList];
+    const temp = updated[index];
+    updated[index] = updated[targetIndex];
+    updated[targetIndex] = temp;
+    setBannersList(updated);
+    if (onUpdateStoreSettings) {
+      onUpdateStoreSettings({ heroBanners: updated });
+    }
+    showToast('Urutan slide banner berhasil dipindahkan.', 'info');
+  };
+
+  const handleResetBanners = () => {
+    const defaultBanners = INITIAL_STORE_SETTINGS.heroBanners || [];
+    setBannersList(defaultBanners);
+    if (onUpdateStoreSettings) {
+      onUpdateStoreSettings({ heroBanners: defaultBanners });
+    }
+    setBannerSuccess('Banner berhasil direset ke bawaan default.');
+    showToast('Banner slider berhasil dikembalikan ke default.', 'info');
+  };
+
+  // Handlers for Visual Category Cards Settings (6 Kategori Beranda)
+  const handleStartEditCategoryCard = (catId) => {
+    const current = categoryCardsSettings?.[catId] || DEFAULT_CATEGORY_CARDS[catId] || {};
+    setEditingCategoryCard({
+      id: catId,
+      title: current.title || catId.toUpperCase(),
+      subtitle: current.subtitle || '',
+      image: current.image || ''
+    });
+    setCatCardError('');
+  };
+
+  const handleCategoryCardUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setCatCardError('File harus berupa gambar (PNG, JPG, WEBP).');
+      return;
+    }
+    if (file.size > 3 * 1024 * 1024) {
+      setCatCardError('Ukuran gambar maksimal 3MB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setEditingCategoryCard(prev => ({ ...prev, image: event.target.result }));
+      setCatCardError('');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSaveCategoryCard = (e) => {
+    e.preventDefault();
+    if (!editingCategoryCard || !editingCategoryCard.id) return;
+    if (!editingCategoryCard.image || !editingCategoryCard.image.trim()) {
+      setCatCardError('Gambar kategori tidak boleh kosong.');
+      return;
+    }
+
+    const catId = editingCategoryCard.id;
+    const updated = {
+      ...(categoryCardsSettings || DEFAULT_CATEGORY_CARDS),
+      [catId]: {
+        title: editingCategoryCard.title.trim() || DEFAULT_CATEGORY_CARDS[catId]?.title || catId,
+        subtitle: editingCategoryCard.subtitle.trim(),
+        image: editingCategoryCard.image.trim()
+      }
+    };
+
+    setCategoryCardsSettings(updated);
+    if (onUpdateStoreSettings) {
+      onUpdateStoreSettings({ categoryCards: updated });
+    }
+    setEditingCategoryCard(null);
+    setCatCardSuccess(`Gambar kategori ${editingCategoryCard.title} berhasil diperbarui.`);
+    showToast(`Gambar kategori ${editingCategoryCard.title} berhasil disimpan`, 'success');
+    setTimeout(() => setCatCardSuccess(''), 4000);
+  };
+
+  const handleResetCategoryCard = (catId) => {
+    const defaultData = DEFAULT_CATEGORY_CARDS[catId];
+    if (!defaultData) return;
+    const updated = {
+      ...(categoryCardsSettings || DEFAULT_CATEGORY_CARDS),
+      [catId]: { ...defaultData }
+    };
+    setCategoryCardsSettings(updated);
+    if (onUpdateStoreSettings) {
+      onUpdateStoreSettings({ categoryCards: updated });
+    }
+    showToast(`Kategori ${defaultData.title} dikembalikan ke preset Apple.`, 'info');
+  };
+
+  const handleResetAllCategoryCards = () => {
+    if (window.confirm('Kembalikan semua gambar & teks 6 kategori Beranda ke preset bawaan Apple?')) {
+      setCategoryCardsSettings(DEFAULT_CATEGORY_CARDS);
+      if (onUpdateStoreSettings) {
+        onUpdateStoreSettings({ categoryCards: DEFAULT_CATEGORY_CARDS });
+      }
+      showToast('Semua gambar kategori Beranda berhasil direset ke default.', 'info');
+    }
+  };
 
   const handleLogoUpload = (e) => {
     const file = e.target.files?.[0];
@@ -4451,7 +4729,29 @@ Terima kasih atas kepercayaan Kakak berbelanja di iConicstore.`;
                 </p>
               </div>
 
-              <div style={{ display: 'flex', gap: '10px' }}>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('settings')}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    background: 'var(--surface)',
+                    color: 'var(--text)',
+                    border: '1px solid var(--border)',
+                    padding: '9px 14px',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    cursor: 'pointer'
+                  }}
+                  title="Atur gambar showcase 6 kategori produk di halaman depan Beranda"
+                >
+                  <ImageIcon style={{ width: '15px', height: '15px', color: 'var(--accent)' }} />
+                  <span>Gambar Kategori Beranda</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={handleOpenAddCategory}
@@ -5218,6 +5518,849 @@ Terima kasih atas kepercayaan Kakak berbelanja di iConicstore.`;
                       <span>Simpan Logo &amp; Identitas Brand</span>
                     </button>
                   </form>
+                </div>
+
+                {/* CARD 1.5: PENGATURAN BANNER PROMO BERANDA (HERO SLIDER) */}
+                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '14px', padding: '24px' }}>
+                  
+                  {/* Card Header */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '18px', paddingBottom: '14px', borderBottom: '1px solid var(--border)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{ width: '34px', height: '34px', borderRadius: '8px', background: 'rgba(10, 132, 255, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent)' }}>
+                        <ImageIcon style={{ width: '18px', height: '18px' }} />
+                      </div>
+                      <div>
+                        <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '800' }}>Pengaturan Banner Slider Beranda</h3>
+                        <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>Kelola gambar slide promosi, aksi klik, dan banner utama di Beranda</span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleResetBanners}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        background: 'transparent',
+                        border: '1px solid var(--border)',
+                        color: 'var(--text-dim)',
+                        padding: '6px 12px',
+                        borderRadius: '8px',
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        cursor: 'pointer'
+                      }}
+                      title="Kembalikan ke susunan banner default"
+                    >
+                      <RotateCcw style={{ width: '12px', height: '12px' }} />
+                      <span>Reset Banner Bawaan</span>
+                    </button>
+                  </div>
+
+                  {/* List of Active Banners */}
+                  <div style={{ marginBottom: '22px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                      <div style={{ fontSize: '12px', fontWeight: '750', color: 'var(--text)' }}>
+                        Daftar Banner Beranda ({bannersList.length} Slide):
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-dim)' }}>
+                        Tayang: <strong style={{ color: '#30D158' }}>{bannersList.filter(b => b.active !== false).length}</strong> / {bannersList.length} Banner
+                      </div>
+                    </div>
+
+                    {bannersList.length === 0 ? (
+                      <div style={{ padding: '20px', textAlign: 'center', background: 'var(--surface-2)', borderRadius: '10px', border: '1px dashed var(--border)', color: 'var(--text-dim)', fontSize: '12px' }}>
+                        Belum ada banner. Tambahkan banner baru melalui formulir di bawah.
+                      </div>
+                    ) : (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '14px' }}>
+                        {bannersList.map((banner, idx) => {
+                          const isActive = banner.active !== false;
+                          return (
+                            <div 
+                              key={banner.id || idx}
+                              style={{
+                                background: 'var(--surface-2)',
+                                border: isActive ? '1px solid var(--border)' : '1px dashed rgba(255, 255, 255, 0.15)',
+                                borderRadius: '12px',
+                                overflow: 'hidden',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                opacity: isActive ? 1 : 0.65,
+                                transition: 'all 0.2s ease'
+                              }}
+                            >
+                              {/* Banner Thumbnail Preview */}
+                              <div style={{ position: 'relative', width: '100%', aspectRatio: '2.2 / 1', background: '#0A0B0D', overflow: 'hidden' }}>
+                                <img 
+                                  src={banner.imageUrl || banner.bg} 
+                                  alt={banner.title} 
+                                  style={{ 
+                                    width: '100%', 
+                                    height: '100%', 
+                                    objectFit: 'cover',
+                                    filter: isActive ? 'none' : 'grayscale(60%)'
+                                  }} 
+                                  onError={(e) => {
+                                    e.currentTarget.onerror = null;
+                                    e.currentTarget.src = 'https://images.unsplash.com/photo-1510557880182-3d4d3cba35a5?w=600&auto=format&fit=crop&q=80';
+                                  }}
+                                />
+                                <div style={{ position: 'absolute', top: '8px', left: '8px', display: 'flex', gap: '6px' }}>
+                                  <span style={{ background: 'rgba(0,0,0,0.75)', color: '#FFFFFF', padding: '2px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: '800' }}>
+                                    Slide #{idx + 1}
+                                  </span>
+                                  <span style={{ 
+                                    background: isActive ? 'rgba(48, 209, 88, 0.25)' : 'rgba(255, 255, 255, 0.2)', 
+                                    color: isActive ? '#30D158' : '#D1D5DB', 
+                                    border: isActive ? '1px solid rgba(48, 209, 88, 0.4)' : '1px solid rgba(255, 255, 255, 0.2)',
+                                    padding: '2px 8px', 
+                                    borderRadius: '6px', 
+                                    fontSize: '10px', 
+                                    fontWeight: '800' 
+                                  }}>
+                                    {isActive ? '● Tayang' : '○ Nonaktif'}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Banner Metadata */}
+                              <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '6px', flexGrow: 1 }}>
+                                <div style={{ fontSize: '13px', fontWeight: '750', color: 'var(--text)', lineHeight: '1.3' }}>
+                                  {banner.title || `Banner Promo #${idx + 1}`}
+                                </div>
+                                <div style={{ fontSize: '11px', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <span>Tujuan:</span>
+                                  <span style={{ color: 'var(--accent)', fontWeight: '600' }}>
+                                    {banner.targetTab === 'pricelist' 
+                                      ? `Pricelist (${banner.category || 'Semua'})`
+                                      : banner.targetTab === 'warranty'
+                                      ? 'Cek Garansi & IMEI'
+                                      : banner.targetTab === 'tradein'
+                                      ? 'Simulasi Trade-In'
+                                      : banner.targetTab === 'lokasi'
+                                      ? 'Lokasi Cabang'
+                                      : 'Katalog'}
+                                  </span>
+                                </div>
+
+                                {/* Action Buttons Toolbar */}
+                                <div style={{ marginTop: 'auto', paddingTop: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', flexWrap: 'wrap', borderTop: '1px solid var(--border)' }}>
+                                  
+                                  {/* Urutan Arrows */}
+                                  <div style={{ display: 'flex', gap: '2px' }}>
+                                    <button
+                                      type="button"
+                                      disabled={idx === 0}
+                                      onClick={() => handleMoveBanner(idx, 'up')}
+                                      style={{
+                                        background: 'var(--surface)',
+                                        border: '1px solid var(--border)',
+                                        color: idx === 0 ? 'var(--text-dim)' : 'var(--text)',
+                                        padding: '4px 7px',
+                                        borderRadius: '5px',
+                                        fontSize: '11px',
+                                        cursor: idx === 0 ? 'not-allowed' : 'pointer',
+                                        opacity: idx === 0 ? 0.35 : 1
+                                      }}
+                                      title="Pindahkan slide ke atas/sebelumnya"
+                                    >
+                                      ↑
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={idx === bannersList.length - 1}
+                                      onClick={() => handleMoveBanner(idx, 'down')}
+                                      style={{
+                                        background: 'var(--surface)',
+                                        border: '1px solid var(--border)',
+                                        color: idx === bannersList.length - 1 ? 'var(--text-dim)' : 'var(--text)',
+                                        padding: '4px 7px',
+                                        borderRadius: '5px',
+                                        fontSize: '11px',
+                                        cursor: idx === bannersList.length - 1 ? 'not-allowed' : 'pointer',
+                                        opacity: idx === bannersList.length - 1 ? 0.35 : 1
+                                      }}
+                                      title="Pindahkan slide ke bawah/berikutnya"
+                                    >
+                                      ↓
+                                    </button>
+                                  </div>
+
+                                  <div style={{ display: 'flex', gap: '6px' }}>
+                                    {/* Toggle Active / Nonaktif Button */}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleToggleBannerActive(banner.id)}
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        background: isActive ? 'rgba(255, 159, 10, 0.12)' : 'rgba(48, 209, 88, 0.15)',
+                                        color: isActive ? '#FF9F0A' : '#30D158',
+                                        border: isActive ? '1px solid rgba(255, 159, 10, 0.3)' : '1px solid rgba(48, 209, 88, 0.35)',
+                                        padding: '5px 8px',
+                                        borderRadius: '6px',
+                                        fontSize: '11px',
+                                        fontWeight: '700',
+                                        cursor: 'pointer'
+                                      }}
+                                      title={isActive ? 'Nonaktifkan banner ini agar tidak tayang' : 'Aktifkan kembali banner ini di Beranda'}
+                                    >
+                                      {isActive ? <EyeOff style={{ width: '12px', height: '12px' }} /> : <Eye style={{ width: '12px', height: '12px' }} />}
+                                      <span>{isActive ? 'Nonaktifkan' : 'Aktifkan'}</span>
+                                    </button>
+
+                                    {/* Edit Button */}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleStartEditBanner(banner)}
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        background: 'rgba(10, 132, 255, 0.12)',
+                                        color: 'var(--accent)',
+                                        border: '1px solid rgba(10, 132, 255, 0.3)',
+                                        padding: '5px 8px',
+                                        borderRadius: '6px',
+                                        fontSize: '11px',
+                                        fontWeight: '700',
+                                        cursor: 'pointer'
+                                      }}
+                                      title="Edit banner ini tanpa menghapus"
+                                    >
+                                      <Edit2 style={{ width: '12px', height: '12px' }} />
+                                      <span>Edit</span>
+                                    </button>
+
+                                    {/* Delete Button */}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteBanner(banner.id)}
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        background: 'rgba(255, 69, 58, 0.1)',
+                                        color: '#FF453A',
+                                        border: '1px solid rgba(255, 69, 58, 0.25)',
+                                        padding: '5px 8px',
+                                        borderRadius: '6px',
+                                        fontSize: '11px',
+                                        fontWeight: '700',
+                                        cursor: 'pointer'
+                                      }}
+                                      title="Hapus banner ini permanen"
+                                    >
+                                      <Trash2 style={{ width: '12px', height: '12px' }} />
+                                    </button>
+                                  </div>
+
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* MODAL EDIT BANNER */}
+                  {editingBanner && (
+                    <div className="modal-backdrop">
+                      <div className="modal-content" style={{ maxWidth: '500px', padding: '24px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '16px', color: 'var(--text)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: '12px', marginBottom: '16px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <Edit2 style={{ width: '17px', height: '17px', color: 'var(--accent)' }} />
+                            <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '800' }}>Edit Banner Promosi</h3>
+                          </div>
+                          <button 
+                            type="button" 
+                            onClick={() => setEditingBanner(null)}
+                            style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', padding: '4px', cursor: 'pointer' }}
+                          >
+                            <X style={{ width: '20px', height: '20px' }} />
+                          </button>
+                        </div>
+
+                        <form onSubmit={handleSaveEditBanner} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-dim)', fontWeight: '600', marginBottom: '4px' }}>
+                              Judul Banner:
+                            </label>
+                            <input
+                              type="text"
+                              value={editingBanner.title}
+                              onChange={(e) => setEditingBanner(prev => ({ ...prev, title: e.target.value }))}
+                              placeholder="Judul banner promo..."
+                              className="input-field"
+                              required
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-dim)', fontWeight: '600', marginBottom: '4px' }}>
+                              Gambar Banner (URL Gambar atau Unggah Baru):
+                            </label>
+                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                              <input
+                                type="text"
+                                value={editingBanner.imageUrl}
+                                onChange={(e) => setEditingBanner(prev => ({ ...prev, imageUrl: e.target.value }))}
+                                placeholder="https://..."
+                                className="input-field"
+                                style={{ flex: '1 1 220px' }}
+                                required
+                              />
+                              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text)', padding: '9px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                                <Upload style={{ width: '13px', height: '13px', color: 'var(--accent)' }} />
+                                <span>Ganti File</span>
+                                <input
+                                  type="file"
+                                  accept="image/png, image/jpeg, image/webp"
+                                  onChange={handleEditBannerUpload}
+                                  style={{ display: 'none' }}
+                                />
+                              </label>
+                            </div>
+
+                            {editingBanner.imageUrl && (
+                              <div style={{ marginTop: '10px', width: '100%', aspectRatio: '2.2 / 1', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border)' }}>
+                                <img src={editingBanner.imageUrl} alt="Preview Edit" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              </div>
+                            )}
+                          </div>
+
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+                            <div>
+                              <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-dim)', fontWeight: '600', marginBottom: '4px' }}>
+                                Tujuan Klik:
+                              </label>
+                              <select
+                                value={editingBanner.targetTab}
+                                onChange={(e) => setEditingBanner(prev => ({ ...prev, targetTab: e.target.value }))}
+                                className="input-field"
+                                style={{ width: '100%', padding: '9px 10px', borderRadius: '8px', background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text)', fontSize: '12px' }}
+                              >
+                                <option value="pricelist">Buka Halaman Pricelist</option>
+                                <option value="warranty">Buka Cek Garansi &amp; IMEI</option>
+                                <option value="tradein">Buka Simulasi Trade-In</option>
+                                <option value="lokasi">Buka Lokasi Cabang Toko</option>
+                              </select>
+                            </div>
+
+                            {editingBanner.targetTab === 'pricelist' && (
+                              <div>
+                                <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-dim)', fontWeight: '600', marginBottom: '4px' }}>
+                                  Kategori Otomatis:
+                                </label>
+                                <select
+                                  value={editingBanner.category || 'iphone'}
+                                  onChange={(e) => setEditingBanner(prev => ({ ...prev, category: e.target.value }))}
+                                  className="input-field"
+                                  style={{ width: '100%', padding: '9px 10px', borderRadius: '8px', background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text)', fontSize: '12px' }}
+                                >
+                                  <option value="iphone">iPhone</option>
+                                  <option value="ipad">iPad</option>
+                                  <option value="macbook">MacBook</option>
+                                  <option value="watch">Apple Watch</option>
+                                  <option value="audio">AirPods</option>
+                                  <option value="accessories">Aksesoris</option>
+                                  <option value="semua">Semua Produk</option>
+                                </select>
+                              </div>
+                            )}
+                          </div>
+
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px', background: 'var(--surface-2)', padding: '12px', borderRadius: '10px' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--text)', cursor: 'pointer' }}>
+                              <input
+                                type="checkbox"
+                                checked={editingBanner.active}
+                                onChange={(e) => setEditingBanner(prev => ({ ...prev, active: e.target.checked }))}
+                                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                              />
+                              <span style={{ fontWeight: '700' }}>Tayangkan Banner ini di Beranda</span>
+                            </label>
+
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--text-dim)', cursor: 'pointer' }}>
+                              <input
+                                type="checkbox"
+                                checked={editingBanner.showText}
+                                onChange={(e) => setEditingBanner(prev => ({ ...prev, showText: e.target.checked }))}
+                                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                              />
+                              <span>Tampilkan teks judul di atas gambar (Nonaktifkan jika banner sudah memiliki teks grafis)</span>
+                            </label>
+                          </div>
+
+                          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '6px' }}>
+                            <button
+                              type="button"
+                              onClick={() => setEditingBanner(null)}
+                              className="btn btn-secondary text-xs"
+                            >
+                              Batal
+                            </button>
+                            <button
+                              type="submit"
+                              className="btn btn-primary text-xs font-bold"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                            >
+                              <Save style={{ width: '14px', height: '14px' }} />
+                              <span>Simpan Perubahan</span>
+                            </button>
+                          </div>
+                        </form>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Add New Banner Form */}
+                  <form onSubmit={handleAddBanner} style={{ display: 'flex', flexDirection: 'column', gap: '14px', background: 'var(--surface-2)', padding: '18px', borderRadius: '12px', border: '1px solid var(--border)' }}>
+                    <div style={{ fontSize: '13px', fontWeight: '800', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Plus style={{ width: '15px', height: '15px', color: 'var(--accent)' }} />
+                      <span>Tambah Banner Promosi Baru</span>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-dim)', fontWeight: '600', marginBottom: '4px' }}>
+                        Judul Banner (Untuk label admin / aksesibilitas):
+                      </label>
+                      <input
+                        type="text"
+                        value={newBannerTitle}
+                        onChange={(e) => setNewBannerTitle(e.target.value)}
+                        placeholder="Contoh: Promo Spesial iPhone 16 Pro Series"
+                        className="input-field"
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-dim)', fontWeight: '600', marginBottom: '4px' }}>
+                        Gambar Banner (URL Gambar atau Unggah File):
+                      </label>
+                      
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <input
+                          type="text"
+                          value={newBannerImage}
+                          onChange={(e) => setNewBannerImage(e.target.value)}
+                          placeholder="Tempel URL gambar (https://...)"
+                          className="input-field"
+                          style={{ flex: '1 1 240px' }}
+                        />
+
+                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', padding: '9px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                          <Upload style={{ width: '14px', height: '14px', color: 'var(--accent)' }} />
+                          <span>Unggah File</span>
+                          <input
+                            type="file"
+                            accept="image/png, image/jpeg, image/webp"
+                            onChange={handleBannerUpload}
+                            style={{ display: 'none' }}
+                          />
+                        </label>
+                      </div>
+
+                      {newBannerImage && (
+                        <div style={{ marginTop: '10px', width: '100%', maxWidth: '380px', aspectRatio: '2.2 / 1', borderRadius: '10px', overflow: 'hidden', border: '1px solid var(--border)' }}>
+                          <img src={newBannerImage} alt="Pratinjau Banner" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-dim)', fontWeight: '600', marginBottom: '4px' }}>
+                          Tujuan Saat Banner Diklik:
+                        </label>
+                        <select
+                          value={newBannerTarget}
+                          onChange={(e) => setNewBannerTarget(e.target.value)}
+                          className="input-field"
+                          style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', fontSize: '12px' }}
+                        >
+                          <option value="pricelist">Buka Halaman Pricelist</option>
+                          <option value="warranty">Buka Cek Garansi &amp; IMEI</option>
+                          <option value="tradein">Buka Simulasi Trade-In</option>
+                          <option value="lokasi">Buka Lokasi Cabang Toko</option>
+                        </select>
+                      </div>
+
+                      {newBannerTarget === 'pricelist' && (
+                        <div>
+                          <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-dim)', fontWeight: '600', marginBottom: '4px' }}>
+                            Filter Kategori Otomatis:
+                          </label>
+                          <select
+                            value={newBannerCategory}
+                            onChange={(e) => setNewBannerCategory(e.target.value)}
+                            className="input-field"
+                            style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', fontSize: '12px' }}
+                          >
+                            <option value="iphone">iPhone</option>
+                            <option value="ipad">iPad</option>
+                            <option value="macbook">MacBook</option>
+                            <option value="watch">Apple Watch</option>
+                            <option value="audio">AirPods</option>
+                            <option value="accessories">Aksesoris</option>
+                            <option value="semua">Semua Produk</option>
+                          </select>
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
+                      <input
+                        type="checkbox"
+                        id="check-show-text"
+                        checked={newBannerShowText}
+                        onChange={(e) => setNewBannerShowText(e.target.checked)}
+                        style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                      />
+                      <label htmlFor="check-show-text" style={{ fontSize: '12px', color: 'var(--text-dim)', cursor: 'pointer' }}>
+                        Tampilkan teks judul di atas gambar (Biarkan tidak dicentang jika banner Anda sudah memiliki teks promosi pada gambarnya)
+                      </label>
+                    </div>
+
+                    {bannerError && (
+                      <div style={{ background: 'rgba(255, 69, 58, 0.12)', border: '1px solid rgba(255, 69, 58, 0.3)', color: '#FF453A', borderRadius: '8px', padding: '10px 12px', fontSize: '11.5px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <AlertTriangle style={{ width: '15px', height: '15px', flexShrink: 0 }} />
+                        <span>{bannerError}</span>
+                      </div>
+                    )}
+
+                    {bannerSuccess && (
+                      <div style={{ background: 'rgba(48, 209, 88, 0.12)', border: '1px solid rgba(48, 209, 88, 0.3)', color: '#30D158', borderRadius: '8px', padding: '10px 12px', fontSize: '11.5px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <CheckCircle2 style={{ width: '15px', height: '15px', flexShrink: 0 }} />
+                        <span>{bannerSuccess}</span>
+                      </div>
+                    )}
+
+                    <div>
+                      <button
+                        type="submit"
+                        className="btn btn-primary text-xs font-bold"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '10px 18px' }}
+                      >
+                        <Save style={{ width: '14px', height: '14px' }} />
+                        <span>Pasang Banner ke Beranda</span>
+                      </button>
+                    </div>
+                  </form>
+                </div>
+
+                {/* CARD: PENGATURAN TAMPILAN KATEGORI BERANDA (6 KATEGORI PRODUK) */}
+                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '14px', padding: '24px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '18px', paddingBottom: '14px', borderBottom: '1px solid var(--border)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(10, 132, 255, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent)' }}>
+                        <Layers style={{ width: '16px', height: '16px' }} />
+                      </div>
+                      <div>
+                        <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '800' }}>Pengaturan Tampilan Kategori Beranda</h3>
+                        <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>
+                          Ubah gambar showcase dan deskripsi 6 kartu kategori produk Apple di halaman Beranda
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleResetAllCategoryCards}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        background: 'rgba(255, 255, 255, 0.05)',
+                        border: '1px solid var(--border)',
+                        color: 'var(--text-dim)',
+                        padding: '6px 12px',
+                        borderRadius: '8px',
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        cursor: 'pointer'
+                      }}
+                      title="Kembalikan semua 6 kategori ke gambar preset Apple"
+                    >
+                      <RotateCcw style={{ width: '12px', height: '12px' }} />
+                      <span>Reset Bawaan Apple</span>
+                    </button>
+                  </div>
+
+                  {catCardSuccess && (
+                    <div style={{ background: 'rgba(48, 209, 88, 0.12)', border: '1px solid rgba(48, 209, 88, 0.3)', color: '#30D158', borderRadius: '8px', padding: '10px 14px', fontSize: '12px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                      <CheckCircle2 style={{ width: '15px', height: '15px', flexShrink: 0 }} />
+                      <span>{catCardSuccess}</span>
+                    </div>
+                  )}
+
+                  {/* 6 Category Cards Grid */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '14px' }}>
+                    {[
+                      { key: 'iphone', label: 'iPhone' },
+                      { key: 'ipad', label: 'iPad' },
+                      { key: 'macbook', label: 'MacBook' },
+                      { key: 'watch', label: 'Apple Watch' },
+                      { key: 'audio', label: 'AirPods' },
+                      { key: 'accessories', label: 'Aksesoris' }
+                    ].map(item => {
+                      const card = categoryCardsSettings?.[item.key] || DEFAULT_CATEGORY_CARDS[item.key] || {};
+                      const isCustom = card.image !== DEFAULT_CATEGORY_CARDS[item.key]?.image || card.subtitle !== DEFAULT_CATEGORY_CARDS[item.key]?.subtitle;
+
+                      return (
+                        <div
+                          key={item.key}
+                          style={{
+                            background: 'var(--surface-2)',
+                            border: isCustom ? '1px solid rgba(10, 132, 255, 0.35)' : '1px solid var(--border)',
+                            borderRadius: '12px',
+                            padding: '14px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'space-between',
+                            position: 'relative'
+                          }}
+                        >
+                          {isCustom && (
+                            <span style={{
+                              position: 'absolute',
+                              top: '10px',
+                              right: '10px',
+                              background: 'rgba(10, 132, 255, 0.2)',
+                              color: 'var(--accent)',
+                              border: '1px solid rgba(10, 132, 255, 0.4)',
+                              fontSize: '9.5px',
+                              fontWeight: '700',
+                              padding: '2px 6px',
+                              borderRadius: '4px'
+                            }}>
+                              Kustom
+                            </span>
+                          )}
+
+                          {/* Image Box */}
+                          <div style={{
+                            width: '100%',
+                            height: '110px',
+                            background: 'rgba(0,0,0,0.3)',
+                            borderRadius: '8px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            overflow: 'hidden',
+                            marginBottom: '10px',
+                            border: '1px solid rgba(255,255,255,0.05)'
+                          }}>
+                            {card.image ? (
+                              <img
+                                src={card.image}
+                                alt={card.title || item.label}
+                                style={{ maxHeight: '95px', maxWidth: '95%', objectFit: 'contain' }}
+                                onError={(e) => {
+                                  e.target.onerror = null;
+                                  e.target.src = DEFAULT_CATEGORY_CARDS[item.key]?.image;
+                                }}
+                              />
+                            ) : (
+                              <ImageIcon style={{ width: '28px', height: '28px', color: 'var(--text-dim)' }} />
+                            )}
+                          </div>
+
+                          {/* Info */}
+                          <div style={{ marginBottom: '12px' }}>
+                            <div style={{ fontSize: '14px', fontWeight: '800', color: 'var(--text)' }}>
+                              {card.title || item.label}
+                            </div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '2px' }}>
+                              {card.subtitle || '-'}
+                            </div>
+                          </div>
+
+                          {/* Actions */}
+                          <div style={{ display: 'flex', gap: '8px', marginTop: 'auto' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleStartEditCategoryCard(item.key)}
+                              style={{
+                                flex: 1,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '5px',
+                                background: 'rgba(10, 132, 255, 0.12)',
+                                color: 'var(--accent)',
+                                border: '1px solid rgba(10, 132, 255, 0.3)',
+                                padding: '6px 10px',
+                                borderRadius: '7px',
+                                fontSize: '11px',
+                                fontWeight: '700',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <Edit2 style={{ width: '12px', height: '12px' }} />
+                              <span>Ganti Gambar</span>
+                            </button>
+
+                            {isCustom && (
+                              <button
+                                type="button"
+                                onClick={() => handleResetCategoryCard(item.key)}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  background: 'rgba(255, 255, 255, 0.05)',
+                                  color: 'var(--text-dim)',
+                                  border: '1px solid var(--border)',
+                                  padding: '6px 8px',
+                                  borderRadius: '7px',
+                                  fontSize: '11px',
+                                  cursor: 'pointer'
+                                }}
+                                title="Reset gambar kategori ini ke bawaan Apple"
+                              >
+                                <RotateCcw style={{ width: '12px', height: '12px' }} />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* MODAL EDIT GAMBAR & DESKRIPSI KATEGORI */}
+                  {editingCategoryCard && (
+                    <div className="modal-backdrop">
+                      <div className="modal-content" style={{ maxWidth: '480px', padding: '24px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '16px', color: 'var(--text)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: '12px', marginBottom: '16px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <Edit2 style={{ width: '17px', height: '17px', color: 'var(--accent)' }} />
+                            <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '800' }}>
+                              Edit Tampilan Kategori {editingCategoryCard.title}
+                            </h3>
+                          </div>
+                          <button 
+                            type="button" 
+                            onClick={() => setEditingCategoryCard(null)}
+                            style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', padding: '4px', cursor: 'pointer' }}
+                          >
+                            <X style={{ width: '20px', height: '20px' }} />
+                          </button>
+                        </div>
+
+                        {/* Image Preview Box */}
+                        <div style={{
+                          width: '100%',
+                          height: '140px',
+                          background: 'rgba(0,0,0,0.3)',
+                          border: '1px solid var(--border)',
+                          borderRadius: '12px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          marginBottom: '16px',
+                          overflow: 'hidden'
+                        }}>
+                          {editingCategoryCard.image ? (
+                            <img
+                              src={editingCategoryCard.image}
+                              alt={editingCategoryCard.title}
+                              style={{ maxHeight: '120px', maxWidth: '90%', objectFit: 'contain' }}
+                            />
+                          ) : (
+                            <span style={{ fontSize: '12px', color: 'var(--text-dim)' }}>Pratinjau Gambar</span>
+                          )}
+                        </div>
+
+                        <form onSubmit={handleSaveCategoryCard} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-dim)', fontWeight: '600', marginBottom: '4px' }}>
+                              Nama Kategori:
+                            </label>
+                            <input
+                              type="text"
+                              value={editingCategoryCard.title}
+                              onChange={(e) => setEditingCategoryCard(prev => ({ ...prev, title: e.target.value }))}
+                              className="input-field"
+                              required
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-dim)', fontWeight: '600', marginBottom: '4px' }}>
+                              Deskripsi Singkat / Subtitle:
+                            </label>
+                            <input
+                              type="text"
+                              value={editingCategoryCard.subtitle}
+                              onChange={(e) => setEditingCategoryCard(prev => ({ ...prev, subtitle: e.target.value }))}
+                              placeholder="Contoh: Smartphone Apple iOS..."
+                              className="input-field"
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-dim)', fontWeight: '600', marginBottom: '4px' }}>
+                              Gambar Showcase (URL Web atau Unggah File Komputer):
+                            </label>
+                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                              <input
+                                type="text"
+                                value={editingCategoryCard.image}
+                                onChange={(e) => setEditingCategoryCard(prev => ({ ...prev, image: e.target.value }))}
+                                placeholder="https://..."
+                                className="input-field"
+                                style={{ flex: '1 1 200px' }}
+                                required
+                              />
+                              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text)', padding: '9px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                                <Upload style={{ width: '13px', height: '13px', color: 'var(--accent)' }} />
+                                <span>Pilih File</span>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={handleCategoryCardUpload}
+                                  style={{ display: 'none' }}
+                                />
+                              </label>
+                            </div>
+                            <span style={{ fontSize: '10.5px', color: 'var(--text-dim)', marginTop: '4px', display: 'block' }}>
+                              Format transparan PNG disarankan untuk hasil estetis Apple yang maksimal.
+                            </span>
+                          </div>
+
+                          {catCardError && (
+                            <div style={{ background: 'rgba(255, 69, 58, 0.12)', border: '1px solid rgba(255, 69, 58, 0.3)', color: '#FF453A', borderRadius: '8px', padding: '10px 12px', fontSize: '11.5px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <AlertTriangle style={{ width: '14px', height: '14px', flexShrink: 0 }} />
+                              <span>{catCardError}</span>
+                            </div>
+                          )}
+
+                          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '6px' }}>
+                            <button
+                              type="button"
+                              onClick={() => setEditingCategoryCard(null)}
+                              className="btn btn-secondary text-xs"
+                            >
+                              Batal
+                            </button>
+                            <button
+                              type="submit"
+                              className="btn btn-primary text-xs font-bold"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                            >
+                              <Save style={{ width: '14px', height: '14px' }} />
+                              <span>Simpan Gambar</span>
+                            </button>
+                          </div>
+                        </form>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* CARD 2: PENGATURAN QRIS TOKO */}

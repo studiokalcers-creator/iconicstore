@@ -448,9 +448,11 @@ export default function App() {
           <WebStorefront
             units={units}
             categories={categories}
+            masterProducts={masterProducts}
             servicePricelist={SERVICE_PRICELIST}
             tradeInValuations={TRADE_IN_VALUATIONS}
             branches={branches}
+            storeSettings={storeSettings}
             onOpenStaffLogin={() => setIsStaffLoginOpen(true)}
             setCurrentTab={setCurrentTab}
           />
