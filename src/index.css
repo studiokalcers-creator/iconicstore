@@ -41,6 +41,25 @@
   white-space: nowrap;
 }
 
+/* Container tabel responsif untuk smartphone iOS & Android */
+.table-container {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  display: block;
+  position: relative;
+  scrollbar-width: thin;
+}
+.table-container table {
+  min-width: max-content !important;
+}
+.table-container th,
+.table-container td {
+  white-space: nowrap !important;
+  vertical-align: middle;
+}
+
 body {
   margin: 0;
   font-family: var(--font-sans);

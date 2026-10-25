@@ -1068,9 +1068,11 @@ export default function OwnerPortal({
     filteredSales.forEach(tx => {
       const cashier = tx.cashierName || 'Kasir Default';
       if (!map[cashier]) {
+        const branchObj = (branches || []).find(b => b.id === tx.branchId);
+        const bName = branchObj ? branchObj.name : (tx.branchName && !tx.branchName.includes('Surabaya') ? tx.branchName : (branches[0]?.name || 'iConicstore'));
         map[cashier] = {
           name: cashier,
-          branchName: tx.branchName || 'Cabang Surabaya Pusat',
+          branchName: bName,
           txCount: 0,
           totalRevenue: 0,
           unitsSold: 0,
@@ -7316,14 +7318,19 @@ Terima kasih atas kepercayaan Kakak berbelanja di iConicstore.`;
             </div>
 
             {/* OPEX Category Breakdown & Expense Table */}
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '14px', padding: '20px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '14px', padding: '20px', overflow: 'hidden', maxWidth: '100%' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
                 <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '700' }}>
                   Daftar Pengeluaran &amp; Biaya Operasional Toko
                 </h3>
-                <span style={{ fontSize: '12px', color: 'var(--text-dim)' }}>
-                  Total: {formatRupiah(totalOpexAmount)}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--text-dim)', background: 'var(--surface-2)', border: '1px solid var(--border)', padding: '3px 8px', borderRadius: '6px' }}>
+                    👉 Geser horizontal
+                  </span>
+                  <span style={{ fontSize: '12px', color: 'var(--text-dim)' }}>
+                    Total: {formatRupiah(totalOpexAmount)}
+                  </span>
+                </div>
               </div>
 
               {filteredOpex.length === 0 ? (
@@ -7331,23 +7338,23 @@ Terima kasih atas kepercayaan Kakak berbelanja di iConicstore.`;
                   Belum ada catatan biaya operasional untuk filter cabang ini.
                 </div>
               ) : (
-                <div className="table-container">
-                  <table className="w-full text-left" style={{ borderCollapse: 'collapse', fontSize: '12px' }}>
+                <div className="table-container" style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch', maxWidth: '100%' }}>
+                  <table className="tidy-table w-full text-left" style={{ width: '100%', minWidth: '680px', borderCollapse: 'collapse', fontSize: '12px' }}>
                     <thead>
                       <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-dim)' }}>
-                        <th style={{ padding: '10px' }}>Tanggal</th>
-                        <th style={{ padding: '10px' }}>Kategori Biaya</th>
-                        <th style={{ padding: '10px' }}>Deskripsi</th>
-                        <th style={{ padding: '10px' }}>Cabang</th>
-                        <th style={{ padding: '10px', textAlign: 'right' }}>Nominal</th>
-                        <th style={{ padding: '10px', textAlign: 'center' }}>Aksi</th>
+                        <th style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>Tanggal</th>
+                        <th style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>Kategori Biaya</th>
+                        <th style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>Deskripsi</th>
+                        <th style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>Cabang</th>
+                        <th style={{ padding: '10px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>Nominal</th>
+                        <th style={{ padding: '10px 12px', textAlign: 'center', whiteSpace: 'nowrap' }}>Aksi</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filteredOpex.map(item => (
                         <tr key={item.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                          <td style={{ padding: '12px 10px', fontFamily: 'var(--font-mono)' }}>{item.date}</td>
-                          <td style={{ padding: '12px 10px' }}>
+                          <td style={{ padding: '12px 10px', fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap' }}>{item.date}</td>
+                          <td style={{ padding: '12px 10px', whiteSpace: 'nowrap' }}>
                             <span style={{
                               fontSize: '11px',
                               fontWeight: '700',
@@ -7359,11 +7366,11 @@ Terima kasih atas kepercayaan Kakak berbelanja di iConicstore.`;
                               {item.category}
                             </span>
                           </td>
-                          <td style={{ padding: '12px 10px', fontWeight: '600' }}>{item.description}</td>
-                          <td style={{ padding: '12px 10px', color: 'var(--text-dim)' }}>
-                            {item.branchId === 'all' ? 'Semua Outlet' : item.branchId === 'b1' ? 'Cabang Surabaya Pusat' : 'Cabang Malang'}
+                          <td style={{ padding: '12px 10px', fontWeight: '600', whiteSpace: 'nowrap' }}>{item.description}</td>
+                          <td style={{ padding: '12px 10px', color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>
+                            {item.branchId === 'all' ? 'Semua Outlet' : ((branches || []).find(b => b.id === item.branchId)?.name || (item.branchId === 'b1' ? 'iConicstore' : item.branchId))}
                           </td>
-                          <td style={{ padding: '12px 10px', textAlign: 'right', fontWeight: '700', color: '#FF453A', fontFamily: 'var(--font-mono)' }}>
+                          <td style={{ padding: '12px 10px', textAlign: 'right', fontWeight: '700', color: '#FF453A', fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap' }}>
                             - {formatRupiah(item.amount)}
                           </td>
                           <td style={{ padding: '12px 10px', textAlign: 'center' }}>
@@ -7826,22 +7833,27 @@ Terima kasih atas kepercayaan Kakak berbelanja di iConicstore.`;
             </div>
 
             {/* Reseller Leaderboard Table */}
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '14px', padding: '20px' }}>
-              <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: '700' }}>
-                Leaderboard &amp; Status Mitra Reseller Aktif
-              </h3>
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '14px', padding: '20px', overflow: 'hidden', maxWidth: '100%' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '700' }}>
+                  Leaderboard &amp; Status Mitra Reseller Aktif
+                </h3>
+                <span style={{ fontSize: '11px', color: 'var(--text-dim)', background: 'var(--surface-2)', border: '1px solid var(--border)', padding: '3px 8px', borderRadius: '6px' }}>
+                  👉 Geser horizontal
+                </span>
+              </div>
 
-              <div className="table-container">
-                <table className="w-full text-left" style={{ borderCollapse: 'collapse', fontSize: '12px' }}>
+              <div className="table-container" style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch', maxWidth: '100%' }}>
+                <table className="tidy-table w-full text-left" style={{ width: '100%', minWidth: '720px', borderCollapse: 'collapse', fontSize: '12px' }}>
                   <thead>
                     <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-dim)' }}>
-                      <th style={{ padding: '10px' }}>Nama Konter / Toko</th>
-                      <th style={{ padding: '10px' }}>Owner / PIC</th>
-                      <th style={{ padding: '10px' }}>Kota</th>
-                      <th style={{ padding: '10px' }}>Tier Reseller</th>
-                      <th style={{ padding: '10px' }}>Diskon Tier</th>
-                      <th style={{ padding: '10px', textAlign: 'right' }}>Total Belanja</th>
-                      <th style={{ padding: '10px', textAlign: 'center' }}>Plafon Kredit</th>
+                      <th style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>Nama Konter / Toko</th>
+                      <th style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>Owner / PIC</th>
+                      <th style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>Kota</th>
+                      <th style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>Tier Reseller</th>
+                      <th style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>Diskon Tier</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>Total Belanja</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'center', whiteSpace: 'nowrap' }}>Plafon Kredit</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -8090,23 +8102,28 @@ Terima kasih atas kepercayaan Kakak berbelanja di iConicstore.`;
             </div>
 
             {/* Preorder Table */}
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '14px', padding: '20px' }}>
-              <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: '700' }}>
-                Daftar Pesanan Pre-Order / Inden Pelanggan
-              </h3>
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '14px', padding: '20px', overflow: 'hidden', maxWidth: '100%' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '700' }}>
+                  Daftar Pesanan Pre-Order / Inden Pelanggan
+                </h3>
+                <span style={{ fontSize: '11px', color: 'var(--text-dim)', background: 'var(--surface-2)', border: '1px solid var(--border)', padding: '3px 8px', borderRadius: '6px' }}>
+                  👉 Geser horizontal
+                </span>
+              </div>
 
-              <div className="table-container">
-                <table className="w-full text-left" style={{ borderCollapse: 'collapse', fontSize: '12px' }}>
+              <div className="table-container" style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch', maxWidth: '100%' }}>
+                <table className="tidy-table w-full text-left" style={{ width: '100%', minWidth: '780px', borderCollapse: 'collapse', fontSize: '12px' }}>
                   <thead>
                     <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-dim)' }}>
-                      <th style={{ padding: '10px' }}>No. PO</th>
-                      <th style={{ padding: '10px' }}>Pelanggan &amp; WhatsApp</th>
-                      <th style={{ padding: '10px' }}>Model iPhone Dipesan</th>
-                      <th style={{ padding: '10px', textAlign: 'right' }}>DP Diterima</th>
-                      <th style={{ padding: '10px', textAlign: 'right' }}>Total Nilai</th>
-                      <th style={{ padding: '10px', textAlign: 'right' }}>Sisa Pelunasan</th>
-                      <th style={{ padding: '10px' }}>Estimasi Tiba</th>
-                      <th style={{ padding: '10px', textAlign: 'center' }}>Status</th>
+                      <th style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>No. PO</th>
+                      <th style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>Pelanggan &amp; WhatsApp</th>
+                      <th style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>Model iPhone Dipesan</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>DP Diterima</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>Total Nilai</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>Sisa Pelunasan</th>
+                      <th style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>Estimasi Tiba</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'center', whiteSpace: 'nowrap' }}>Status</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -8228,22 +8245,27 @@ Terima kasih atas kepercayaan Kakak berbelanja di iConicstore.`;
             </div>
 
             {/* Staff Leaderboard */}
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '14px', padding: '20px' }}>
-              <h3 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: '700' }}>
-                Sales Leaderboard &amp; Rekap Insentif Kasir
-              </h3>
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '14px', padding: '20px', overflow: 'hidden', maxWidth: '100%' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '700' }}>
+                  Sales Leaderboard &amp; Rekap Insentif Kasir
+                </h3>
+                <span style={{ fontSize: '11px', color: 'var(--text-dim)', background: 'var(--surface-2)', border: '1px solid var(--border)', padding: '3px 8px', borderRadius: '6px' }}>
+                  👉 Geser horizontal
+                </span>
+              </div>
 
-              <div className="table-container">
-                <table className="w-full text-left" style={{ borderCollapse: 'collapse', fontSize: '12px' }}>
+              <div className="table-container" style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch', maxWidth: '100%' }}>
+                <table className="tidy-table w-full text-left" style={{ width: '100%', minWidth: '740px', borderCollapse: 'collapse', fontSize: '12px' }}>
                   <thead>
                     <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-dim)' }}>
-                      <th style={{ padding: '10px' }}>Peringkat &amp; Nama Kasir</th>
-                      <th style={{ padding: '10px' }}>Penugasan Cabang</th>
-                      <th style={{ padding: '10px', textAlign: 'center' }}>Transaksi</th>
-                      <th style={{ padding: '10px', textAlign: 'center' }}>Unit Terjual</th>
-                      <th style={{ padding: '10px', textAlign: 'right' }}>Total Omzet</th>
-                      <th style={{ padding: '10px', textAlign: 'right' }}>Komisi Diperoleh</th>
-                      <th style={{ padding: '10px', textAlign: 'right' }}>Rata-rata Nota</th>
+                      <th style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>Peringkat &amp; Nama Kasir</th>
+                      <th style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>Penugasan Cabang</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'center', whiteSpace: 'nowrap' }}>Transaksi</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'center', whiteSpace: 'nowrap' }}>Unit Terjual</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>Total Omzet</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>Komisi Diperoleh</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>Rata-rata Nota</th>
                     </tr>
                   </thead>
                   <tbody>
