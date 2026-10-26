@@ -201,6 +201,7 @@ export default function CloudPOS({
   useEffect(() => {
     let isMounted = true;
     let scannerInstance = null;
+    let videoObserver = null;
 
     if (isCameraScannerOpen) {
       setCameraError('');
@@ -214,6 +215,26 @@ export default function CloudPOS({
             }
             return;
           }
+
+          const container = document.getElementById('pos-barcode-scanner-view');
+          if (!container) return;
+
+          // Ensure any video tag created inside has playsinline, muted, autoplay for iOS WebKit
+          videoObserver = new MutationObserver(() => {
+            const video = container.querySelector('video');
+            if (video) {
+              video.setAttribute('playsinline', 'true');
+              video.setAttribute('webkit-playsinline', 'true');
+              video.setAttribute('autoplay', 'true');
+              video.setAttribute('muted', 'true');
+              video.muted = true;
+              video.playsInline = true;
+              if (video.paused) {
+                video.play().catch(() => {});
+              }
+            }
+          });
+          videoObserver.observe(container, { childList: true, subtree: true });
 
           const formatsToSupport = [
             Html5QrcodeSupportedFormats.CODE_128,
@@ -232,37 +253,48 @@ export default function CloudPOS({
           scannerInstance = scanner;
           html5QrCodeRef.current = scanner;
 
-          const config = {
-            fps: 15,
-            qrbox: { width: 250, height: 130 },
-            aspectRatio: 1.333333
+          const scanConfig = { fps: 15 };
+          const onScanSuccess = (decodedText) => {
+            if (!isMounted) return;
+            const rawVal = String(decodedText || '').trim();
+            const matched = availableUnits.find(u => 
+              (u.barcodeCode && u.barcodeCode.toUpperCase() === rawVal.toUpperCase()) ||
+              u.imei === rawVal ||
+              (u.serialNumber && u.serialNumber.toUpperCase() === rawVal.toUpperCase())
+            );
+            if (matched) {
+              try { playBarcodeBeep(); } catch (e) {}
+              if (scanner && scanner.isScanning) {
+                scanner.stop().catch(() => {});
+              }
+              addToCart(matched);
+              setIsCameraScannerOpen(false);
+              showToast(`Unit ${matched.modelName} berhasil ditambahkan ke keranjang!`, 'success', 'Barcode Terdeteksi');
+            } else {
+              showToast(`Kode barcode "${rawVal}" terdeteksi, namun tidak cocok dengan stok unit.`, 'info');
+            }
           };
 
-          await scanner.start(
-            { facingMode: 'environment' },
-            config,
-            (decodedText) => {
-              if (!isMounted) return;
-              const rawVal = String(decodedText || '').trim();
-              const matched = availableUnits.find(u => 
-                (u.barcodeCode && u.barcodeCode.toUpperCase() === rawVal.toUpperCase()) ||
-                u.imei === rawVal ||
-                (u.serialNumber && u.serialNumber.toUpperCase() === rawVal.toUpperCase())
-              );
-              if (matched) {
-                try { playBarcodeBeep(); } catch (e) {}
-                if (scanner && scanner.isScanning) {
-                  scanner.stop().catch(() => {});
-                }
-                addToCart(matched);
-                setIsCameraScannerOpen(false);
-                showToast(`Unit ${matched.modelName} berhasil ditambahkan ke keranjang!`, 'success', 'Barcode Terdeteksi');
-              } else {
-                showToast(`Kode barcode "${rawVal}" terdeteksi, namun tidak cocok dengan stok unit.`, 'info');
-              }
-            },
-            () => {}
-          );
+          try {
+            await scanner.start(
+              { facingMode: 'environment' },
+              scanConfig,
+              onScanSuccess,
+              () => {}
+            );
+          } catch (directErr) {
+            console.warn('Direct facingMode environment failed, trying fallback camera ID...', directErr);
+            const cameras = await Html5Qrcode.getCameras();
+            if (cameras && cameras.length > 0) {
+              const backCam = cameras.find(c => {
+                const label = (c.label || '').toLowerCase();
+                return label.includes('back') || label.includes('rear') || label.includes('belakang') || label.includes('environment');
+              }) || cameras[0];
+              await scanner.start(backCam.id, scanConfig, onScanSuccess, () => {});
+            } else {
+              throw directErr;
+            }
+          }
 
           if (isMounted) {
             setIsCameraActive(true);
@@ -288,6 +320,9 @@ export default function CloudPOS({
       return () => {
         isMounted = false;
         clearTimeout(timer);
+        if (videoObserver) {
+          try { videoObserver.disconnect(); } catch (e) {}
+        }
         if (scannerInstance) {
           if (scannerInstance.isScanning) {
             scannerInstance.stop().then(() => scannerInstance.clear()).catch(() => {});
@@ -1249,41 +1284,67 @@ export default function CloudPOS({
               borderRadius: '12px',
               overflow: 'hidden',
               position: 'relative',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
               border: '1px solid var(--border)',
               marginBottom: '14px'
             }}>
               <div 
                 id="pos-barcode-scanner-view" 
                 style={{
+                  position: 'absolute',
+                  inset: 0,
                   width: '100%',
-                  height: '100%',
-                  display: isCameraActive ? 'block' : 'none'
+                  height: '100%'
                 }}
               />
 
-              {!isCameraActive && (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px', textAlign: 'center', gap: '8px' }}>
-                  <div style={{
-                    width: '180px',
-                    height: '90px',
-                    border: '2px dashed rgba(10, 132, 255, 0.4)',
-                    borderRadius: '8px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    marginBottom: '4px'
-                  }}>
-                    <Camera style={{ width: '28px', height: '28px', color: 'var(--accent)', opacity: 0.8 }} />
-                  </div>
-                  <span style={{ fontSize: '12px', color: 'var(--text-dim)', fontWeight: '600' }}>
-                    {cameraError ? 'Sensor kamera belum aktif' : 'Mengaktifkan sensor kamera iOS...'}
+              {/* Laser Scan Guide Overlay */}
+              <div style={{
+                position: 'absolute',
+                inset: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                pointerEvents: 'none',
+                zIndex: 10
+              }}>
+                <div style={{
+                  width: '230px',
+                  height: '115px',
+                  border: '2px solid rgba(10, 132, 255, 0.9)',
+                  borderRadius: '12px',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 0 24px rgba(10, 132, 255, 0.4)'
+                }}>
+                  <div className="barcode-laser-line" />
+                </div>
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  marginTop: '12px',
+                  padding: '4px 10px',
+                  borderRadius: '20px',
+                  background: 'rgba(0, 0, 0, 0.65)',
+                  backdropFilter: 'blur(8px)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)'
+                }}>
+                  <span style={{
+                    width: '7px',
+                    height: '7px',
+                    borderRadius: '50%',
+                    background: isCameraActive ? '#30D158' : '#FF9F0A',
+                    boxShadow: isCameraActive ? '0 0 8px #30D158' : 'none'
+                  }} />
+                  <span style={{ fontSize: '11px', color: '#FFFFFF', fontWeight: '600', letterSpacing: '0.2px' }}>
+                    {isCameraActive ? 'Arahkan kamera ke barcode / serial' : 'Memuat sensor kamera iOS...'}
                   </span>
                 </div>
-              )}
+              </div>
             </div>
 
             {cameraError && (

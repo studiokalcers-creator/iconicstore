@@ -1477,8 +1477,12 @@ input, select {
 
 /* POS Barcode Scanner container */
 #pos-barcode-scanner-view {
+  width: 100% !important;
+  height: 100% !important;
+  position: absolute !important;
+  inset: 0 !important;
+  overflow: hidden !important;
   border: none !important;
-  position: relative !important;
 }
 #pos-barcode-scanner-view video {
   width: 100% !important;
@@ -1489,8 +1493,39 @@ input, select {
 #pos-barcode-scanner-view img {
   display: none !important;
 }
+#pos-barcode-scanner-view #qr-shaded-region {
+  display: none !important;
+}
 #pos-barcode-scanner-view__scan_region {
+  width: 100% !important;
+  height: 100% !important;
   min-height: 100% !important;
 }
+
+@keyframes barcodeLaserMove {
+  0% {
+    top: 6px;
+    opacity: 0.85;
+  }
+  50% {
+    top: calc(100% - 8px);
+    opacity: 1;
+  }
+  100% {
+    top: 6px;
+    opacity: 0.85;
+  }
+}
+
+.barcode-laser-line {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: #FF453A;
+  box-shadow: 0 0 10px 2px #FF453A;
+  animation: barcodeLaserMove 2s ease-in-out infinite;
+}
+
 
 
