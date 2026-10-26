@@ -7,6 +7,7 @@ import {
   Banknote, 
   QrCode, 
   ArrowRight, 
+  ArrowLeft,
   Check, 
   Lock, 
   Printer, 
@@ -841,88 +842,78 @@ export default function CloudPOS({
       <div className="responsive-container">
 
         {/* Top Control Bar: Mode Penjualan & Shift Status */}
-        <div style={{
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: '14px',
-          padding: '16px 20px',
-          marginBottom: '24px',
-          display: 'flex',
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '16px'
-        }}>
+        <div className="pos-top-control-bar">
           
           {/* Left: Mode Switcher */}
-          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-            <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-dim)' }}>
-              Mode Penjualan:
-            </span>
+          <div className="pos-mode-switcher">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+              <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-dim)' }}>
+                Mode Penjualan:
+              </span>
+              {pricingMode === 'reseller' && (
+                <span style={{ fontSize: '11px', color: '#C084FC', fontWeight: '700', background: 'rgba(147, 51, 234, 0.15)', padding: '2px 8px', borderRadius: '4px' }}>
+                  Grosir Aktif
+                </span>
+              )}
+            </div>
             
-            <button
-              type="button"
-              onClick={() => {
-                setPricingMode('retail');
-                setSelectedResellerId('');
-              }}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '8px 14px',
-                borderRadius: '8px',
-                fontSize: '12px',
-                fontWeight: '700',
-                cursor: 'pointer',
-                background: pricingMode === 'retail' ? 'var(--accent)' : 'var(--surface-2)',
-                color: pricingMode === 'retail' ? 'var(--accent-ink)' : 'var(--text-dim)',
-                border: pricingMode === 'retail' ? '1px solid var(--accent)' : '1px solid var(--border)',
-                transition: 'all .15s ease'
-              }}
-            >
-              <User style={{ width: '14px', height: '14px' }} />
-              <span>Mode Retail (End-User)</span>
-            </button>
+            <div className="pos-mode-buttons">
+              <button
+                type="button"
+                onClick={() => {
+                  setPricingMode('retail');
+                  setSelectedResellerId('');
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 14px',
+                  borderRadius: '8px',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  background: pricingMode === 'retail' ? 'var(--accent)' : 'var(--surface-2)',
+                  color: pricingMode === 'retail' ? 'var(--accent-ink)' : 'var(--text-dim)',
+                  border: pricingMode === 'retail' ? '1px solid var(--accent)' : '1px solid var(--border)',
+                  transition: 'all .15s ease'
+                }}
+              >
+                <User style={{ width: '14px', height: '14px' }} />
+                <span>Mode Retail (End-User)</span>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                setPricingMode('reseller');
-                if (resellers.length > 0 && !selectedResellerId) {
-                  setSelectedResellerId(resellers[0].id);
-                }
-              }}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '8px 14px',
-                borderRadius: '8px',
-                fontSize: '12px',
-                fontWeight: '700',
-                cursor: 'pointer',
-                background: pricingMode === 'reseller' ? '#9333EA' : 'var(--surface-2)',
-                color: pricingMode === 'reseller' ? '#FFFFFF' : 'var(--text-dim)',
-                border: pricingMode === 'reseller' ? '1px solid #9333EA' : '1px solid var(--border)',
-                transition: 'all .15s ease'
-              }}
-            >
-              <Building2 style={{ width: '14px', height: '14px' }} />
-              <span>Mode Reseller (Grosir)</span>
-            </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPricingMode('reseller');
+                  if (resellers.length > 0 && !selectedResellerId) {
+                    setSelectedResellerId(resellers[0].id);
+                  }
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 14px',
+                  borderRadius: '8px',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  background: pricingMode === 'reseller' ? '#9333EA' : 'var(--surface-2)',
+                  color: pricingMode === 'reseller' ? '#FFFFFF' : 'var(--text-dim)',
+                  border: pricingMode === 'reseller' ? '1px solid #9333EA' : '1px solid var(--border)',
+                  transition: 'all .15s ease'
+                }}
+              >
+                <Building2 style={{ width: '14px', height: '14px' }} />
+                <span>Mode Reseller (Grosir)</span>
+              </button>
+            </div>
 
             {pricingMode === 'reseller' && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                background: 'rgba(147, 51, 234, 0.12)',
-                border: '1px solid rgba(147, 51, 234, 0.35)',
-                borderRadius: '8px',
-                padding: '4px 10px'
-              }}>
-                <span style={{ fontSize: '11px', color: '#C084FC', fontWeight: '600' }}>Pilih Mitra:</span>
+              <div className="pos-reseller-select-box">
+                <span style={{ fontSize: '11px', color: '#C084FC', fontWeight: '600', flexShrink: 0 }}>Pilih Mitra:</span>
                 <select
                   value={selectedResellerId}
                   onChange={(e) => setSelectedResellerId(e.target.value)}
@@ -932,8 +923,11 @@ export default function CloudPOS({
                     color: 'var(--text)',
                     fontSize: '12px',
                     borderRadius: '6px',
-                    padding: '4px 8px',
-                    cursor: 'pointer'
+                    padding: '6px 8px',
+                    cursor: 'pointer',
+                    flex: 1,
+                    minWidth: 0,
+                    maxWidth: '100%'
                   }}
                 >
                   {resellers.map(r => (
@@ -947,7 +941,7 @@ export default function CloudPOS({
           </div>
 
           {/* Right: Shift info & Button */}
-          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '12px', fontSize: '12px', color: 'var(--text-dim)' }}>
+          <div className="pos-shift-info-bar">
             <button
               type="button"
               onClick={() => setIsShiftModalOpen(true)}
@@ -1107,7 +1101,7 @@ export default function CloudPOS({
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <Sparkles style={{ width: '13px', height: '13px', color: 'var(--accent)' }} />
                     <span style={{ fontSize: '11px', color: 'var(--text)', fontWeight: '700' }}>
-                      ⚡ Tap Barcode untuk Uji Coba Cepat di HP:
+                      Tap Barcode untuk Uji Coba Cepat di HP:
                     </span>
                   </div>
                   <span style={{ fontSize: '10px', color: 'var(--text-dim)' }}>
@@ -1330,8 +1324,8 @@ export default function CloudPOS({
                 marginBottom: '4px'
               }}
             >
-              <ArrowRight style={{ width: '14px', height: '14px', transform: 'rotate(180deg)' }} />
-              <span>← Tambah Unit / Scan Barcode Lain</span>
+              <ArrowLeft style={{ width: '14px', height: '14px' }} />
+              <span>Tambah Unit / Scan Barcode Lain</span>
             </button>
             
             {/* Cart Header */}

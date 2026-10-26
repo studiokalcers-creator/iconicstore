@@ -194,7 +194,7 @@ export default function HeaderNav({
         </div>
 
         {/* Navigation Bar Row */}
-        <nav className="responsive-container mobile-touch-nav" style={{ paddingTop: '10px', paddingBottom: '10px', gap: '8px' }} aria-label="Navigasi">
+        <nav className="nav-tabs-scroll" style={{ padding: '8px 16px', gap: '8px', maxWidth: '1280px', margin: '0 auto' }} aria-label="Navigasi">
           
           {/* CUSTOMER MODE (Public Visitor - Kasir & Barcode strictly HIDDEN) */}
           {!isStaffTab ? (
@@ -256,7 +256,7 @@ export default function HeaderNav({
 
               {/* DEDICATED OWNER PORTAL BUTTON (PROTECTED BY PIN) */}
               {isOwnerAuthenticated && currentTab === 'owner' ? (
-                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                   <div
                     style={{
                       display: 'flex',
@@ -299,7 +299,7 @@ export default function HeaderNav({
                   </button>
                 </div>
               ) : (
-                <div style={{ marginLeft: 'auto' }}>
+                <div style={{ marginLeft: 'auto', flexShrink: 0 }}>
                   <button
                     type="button"
                     onClick={() => {
