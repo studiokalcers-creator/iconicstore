@@ -29,23 +29,44 @@ export default function WarrantyCheckView({
 
     setHasSearched(true);
     const query = searchImei.trim().toUpperCase();
+    const cleanDigits = query.replace(/\D/g, '');
 
-    // Check in sales history first, then in current units
-    const foundSale = salesHistory.find(s => s.items && s.items.some(i => i.imei === query));
-    const foundUnit = units.find(u => u.imei === query || u.serialNumber === query || u.barcodeCode === query);
+    // Check in sales history first (by IMEI, phone number, or customer name), then in current units
+    const foundSale = salesHistory.find(s => {
+      const matchImei = s.items && s.items.some(i => 
+        String(i.imei || '').toUpperCase() === query || 
+        String(i.serialNumber || '').toUpperCase() === query ||
+        String(i.barcodeCode || '').toUpperCase() === query
+      );
+      const sPhoneDigits = String(s.customerPhone || '').replace(/\D/g, '');
+      const matchPhone = cleanDigits.length >= 6 && sPhoneDigits.includes(cleanDigits);
+      const matchName = query.length >= 3 && String(s.customerName || '').toUpperCase().includes(query);
+      return matchImei || matchPhone || matchName;
+    });
+
+    const foundUnit = units.find(u => 
+      String(u.imei || '').toUpperCase() === query || 
+      String(u.serialNumber || '').toUpperCase() === query || 
+      String(u.barcodeCode || '').toUpperCase() === query
+    );
 
     if (foundSale) {
-      const item = foundSale.items.find(i => i.imei === query);
+      const item = foundSale.items.find(i => 
+        String(i.imei || '').toUpperCase() === query || 
+        String(i.serialNumber || '').toUpperCase() === query
+      ) || foundSale.items[0];
+
       setSearchResult({
         found: true,
         modelName: item.modelName,
         imei: item.imei,
-        saleDate: foundSale.date || '23 Oktober 2026',
-        customerName: foundSale.customerName || 'Pelanggan Terverifikasi',
-        warrantyEnd: '23 November 2026',
+        saleDate: foundSale.date || 'Terdaftar di Cloud POS',
+        customerName: foundSale.customerName || 'Pelanggan Umum',
+        customerPhone: foundSale.customerPhone || '-',
+        warrantyEnd: '30 Hari Setelah Pembelian',
         isWarrantyActive: true,
         storeWarranty: item.storeWarranty || '1 Bulan Tukar Unit Toko',
-        signalStatus: 'Resmi Indonesia (iBox) — Permanen'
+        signalStatus: item.signalOrigin && item.signalOrigin.includes('iBox') ? 'Resmi Indonesia (iBox) — Permanen' : 'All Operator Permanen'
       });
     } else if (foundUnit) {
       setSearchResult({
@@ -54,7 +75,8 @@ export default function WarrantyCheckView({
         imei: foundUnit.imei,
         saleDate: foundUnit.status === 'sold' ? '23 Oktober 2026' : 'Unit Terdaftar di Database Toko',
         customerName: foundUnit.status === 'sold' ? 'Pelanggan iConicstore' : 'Unit Terdaftar Resmi',
-        warrantyEnd: '23 November 2026',
+        customerPhone: '-',
+        warrantyEnd: '30 Hari Setelah Aktivasi',
         isWarrantyActive: true,
         storeWarranty: foundUnit.storeWarranty || '1 Bulan Tukar Unit Toko',
         signalStatus: foundUnit.signalWarranty || 'Garansi Sinyal Seumur Hidup'
@@ -113,18 +135,18 @@ export default function WarrantyCheckView({
             <form onSubmit={handleSearch} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div>
                 <label htmlFor="imei-input" style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: '8px' }}>
-                  Nomor IMEI / Serial Number Perangkat
+                  Nomor IMEI / No. WhatsApp / Nama Pelanggan
                 </label>
                 <div style={{ position: 'relative' }}>
                   <Search style={{ width: '18px', height: '18px', position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-dim)' }} />
                   <input
                     id="imei-input"
                     type="text"
-                    maxLength={18}
-                    placeholder="Contoh: 356789123456789 atau C02M2AIR256X"
+                    maxLength={32}
+                    placeholder="Contoh: 359114836591861 atau 08123456789 atau Nama Pembeli..."
                     value={searchImei}
                     onChange={(e) => setSearchImei(e.target.value)}
-                    style={{ width: '100%', boxSizing: 'border-box', background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text)', fontSize: '15px', fontFamily: 'monospace', letterSpacing: '1px', padding: '14px 16px 14px 48px', borderRadius: '12px', minHeight: '52px' }}
+                    style={{ width: '100%', boxSizing: 'border-box', background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text)', fontSize: '15px', fontFamily: 'monospace', letterSpacing: '0.5px', padding: '14px 16px 14px 48px', borderRadius: '12px', minHeight: '52px' }}
                   />
                 </div>
               </div>
@@ -190,6 +212,16 @@ export default function WarrantyCheckView({
                       <span style={{ color: 'var(--text-dim)' }}>Nomor IMEI Fisik:</span>
                       <span style={{ fontFamily: 'monospace', fontWeight: '700', color: 'var(--text)' }}>{searchResult.imei}</span>
                     </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--text-dim)' }}>Nama Pembeli:</span>
+                      <strong style={{ color: 'var(--text)' }}>{searchResult.customerName}</strong>
+                    </div>
+                    {searchResult.customerPhone && searchResult.customerPhone !== '-' && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: 'var(--text-dim)' }}>No. Handphone / WA:</span>
+                        <span style={{ fontFamily: 'monospace', fontWeight: '700', color: 'var(--accent)' }}>{searchResult.customerPhone}</span>
+                      </div>
+                    )}
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span style={{ color: 'var(--text-dim)' }}>Tanggal Pembelian:</span>
                       <span style={{ fontWeight: '600', color: 'var(--text)' }}>{searchResult.saleDate}</span>

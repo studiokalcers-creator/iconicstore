@@ -821,6 +821,7 @@ export default function CloudPOS({
       `Tanggal: ${completedTransaction.date}\n` +
       `Kasir: ${completedTransaction.cashierName}\n` +
       `Pelanggan: ${completedTransaction.customerName}\n` +
+      (completedTransaction.customerPhone && completedTransaction.customerPhone !== '-' ? `No. HP / WA: ${completedTransaction.customerPhone}\n` : '') +
       `Tipe: ${completedTransaction.preorderId ? `Pelunasan Pre-Order (${completedTransaction.preorderId})` : (completedTransaction.pricingMode === 'reseller' ? 'Harga Khusus Reseller' : 'Retail Umum')}\n\n` +
       `*RINCIAN PERANGKAT APPLE:*\n${itemsList}\n\n` +
       `Subtotal: ${formatRupiah(completedTransaction.subtotal)}\n` +
@@ -1452,6 +1453,136 @@ export default function CloudPOS({
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* Registrasi Data Pelanggan & Garansi Digital (Nama, No Handphone, No IMEI) */}
+            {cart.length > 0 && (
+              <div style={{
+                background: 'var(--surface-2)',
+                border: '1px solid rgba(10, 132, 255, 0.25)',
+                borderRadius: '12px',
+                padding: '12px 14px',
+                margin: '8px 0 12px 0',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <ShieldCheck style={{ width: '15px', height: '15px', color: '#30D158' }} />
+                    <span style={{ fontSize: '12.5px', fontWeight: '700', color: 'var(--text)' }}>
+                      Data Pelanggan &amp; Garansi
+                    </span>
+                  </div>
+                  <span style={{
+                    fontSize: '10px',
+                    color: '#30D158',
+                    background: 'rgba(48, 209, 88, 0.12)',
+                    border: '1px solid rgba(48, 209, 88, 0.3)',
+                    padding: '2px 8px',
+                    borderRadius: '999px',
+                    fontWeight: '700'
+                  }}>
+                    Klaim Garansi Siap
+                  </span>
+                </div>
+
+                {/* No IMEI Terdaftar (Otomatis dari Unit yang di-scan) */}
+                <div style={{
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '8px',
+                  padding: '8px 10px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '11px', color: 'var(--text-dim)', fontWeight: '600' }}>
+                      No. IMEI Terdaftar (Otomatis):
+                    </span>
+                    <span style={{ fontSize: '10px', color: 'var(--text-dim)' }}>
+                      {cart.length} Unit
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {cart.map(c => (
+                      <span 
+                        key={c.id} 
+                        style={{
+                          fontFamily: 'var(--font-mono)',
+                          fontWeight: '700',
+                          color: 'var(--accent)',
+                          background: 'rgba(10, 132, 255, 0.1)',
+                          border: '1px solid rgba(10, 132, 255, 0.25)',
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          fontSize: '11.5px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        <Smartphone style={{ width: '11px', height: '11px' }} />
+                        <span>{c.imei || c.serialNumber || c.barcodeCode}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Input Fields: Nama Pelanggan & No Handphone */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-dim)', fontWeight: '600', marginBottom: '4px' }}>
+                      Nama Pelanggan:
+                    </label>
+                    <input 
+                      type="text"
+                      placeholder="Nama Pembeli..."
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      style={{
+                        width: '100%',
+                        boxSizing: 'border-box',
+                        background: 'var(--surface)',
+                        border: '1px solid var(--border)',
+                        color: 'var(--text)',
+                        fontSize: '12px',
+                        padding: '9px 10px',
+                        borderRadius: '8px'
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-dim)', fontWeight: '600', marginBottom: '4px' }}>
+                      No. Handphone / WA:
+                    </label>
+                    <input 
+                      type="tel"
+                      placeholder="0812xxxxxxx"
+                      value={customerPhone}
+                      onChange={(e) => setCustomerPhone(e.target.value)}
+                      style={{
+                        width: '100%',
+                        boxSizing: 'border-box',
+                        background: 'var(--surface)',
+                        border: '1px solid var(--border)',
+                        color: 'var(--text)',
+                        fontSize: '12px',
+                        fontFamily: 'var(--font-mono)',
+                        padding: '9px 10px',
+                        borderRadius: '8px'
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ fontSize: '10.5px', color: 'var(--text-dim)', lineHeight: '1.4' }}>
+                  Data nama, nomor WA, dan IMEI unit ini akan tersimpan otomatis sebagai bukti klaim garansi di menu <strong>Garansi &amp; Servis</strong> dan dicantumkan pada Struk WhatsApp.
+                </div>
               </div>
             )}
 
@@ -2411,6 +2542,9 @@ export default function CloudPOS({
                 </div>
                 <div>Kasir: {completedTransaction.cashierName}</div>
                 <div>Customer: {completedTransaction.customerName}</div>
+                {completedTransaction.customerPhone && completedTransaction.customerPhone !== '-' && (
+                  <div>No. HP/WA: {completedTransaction.customerPhone}</div>
+                )}
               </div>
 
               <div style={{ borderTop: '1px dashed #000000', paddingTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
