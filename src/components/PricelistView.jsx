@@ -413,9 +413,15 @@ export default function PricelistView({
                       src={p.image} 
                       alt={p.name} 
                       loading="lazy"
+                      decoding="async"
                       style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '16px', transition: 'transform 0.2s ease' }}
                       onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
                       onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                      onError={(e) => {
+                        if (e.currentTarget.dataset.failed) return;
+                        e.currentTarget.dataset.failed = 'true';
+                        e.currentTarget.src = getApplePresetPhoto(p.category || p.name);
+                      }}
                     />
                   ) : (
                     <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ color: 'var(--text-dim)' }} aria-hidden="true">

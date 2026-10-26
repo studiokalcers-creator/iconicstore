@@ -37,8 +37,24 @@ export default function WebStorefront({
   const [selectedCategory, setSelectedCategory] = useState('semua');
   const [selectedCondition, setSelectedCondition] = useState('Semua Kondisi');
   const [selectedSignal, setSelectedSignal] = useState('Semua Status');
+  const [selectedBranch, setSelectedBranch] = useState(() => activeBranch?.id || 'semua');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDetailProduct, setSelectedDetailProduct] = useState(null);
+
+  // Sinkronisasi otomatis saat cabang aktif di header atas berubah
+  useEffect(() => {
+    if (activeBranch?.id) {
+      setSelectedBranch(activeBranch.id);
+    }
+  }, [activeBranch?.id]);
+
+  const handleBranchChange = (branchId) => {
+    setSelectedBranch(branchId);
+    if (branchId !== 'semua' && setActiveBranch) {
+      const target = branches.find(b => b.id === branchId);
+      if (target) setActiveBranch(target);
+    }
+  };
 
   // Hero Slider State
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -280,6 +296,11 @@ export default function WebStorefront({
   // Filtered Products
   const products = useMemo(() => {
     return allProducts.filter(p => {
+      // Branch filter
+      if (selectedBranch !== 'semua' && p.branchId !== selectedBranch) {
+        return false;
+      }
+
       // Category filter
       if (selectedCategory !== 'semua') {
         if (selectedCategory === 'audio') {
@@ -318,7 +339,7 @@ export default function WebStorefront({
 
       return true;
     });
-  }, [allProducts, selectedCategory, selectedCondition, selectedSignal, searchQuery]);
+  }, [allProducts, selectedCategory, selectedCondition, selectedSignal, selectedBranch, searchQuery]);
 
   const handleWhatsAppOrder = (product) => {
     const text = encodeURIComponent(
@@ -531,27 +552,42 @@ export default function WebStorefront({
             <span className="section-eyebrow">Ready Stock Toko</span>
             <h2>
               {selectedCategory === 'semua' 
-                ? `Pricelist Unit Ready Stock (${products.length} Unit)`
-                : `Unit Ready Stock: ${categoryCards.find(c => c.id === selectedCategory)?.title || selectedCategory} (${products.length} Unit)`}
+                ? `Pricelist Unit Ready Stock ${selectedBranch !== 'semua' ? `— ${branches.find(b => b.id === selectedBranch)?.name || 'Cabang Terpilih'}` : ''} (${products.length} Unit)`
+                : `Unit Ready Stock: ${categoryCards.find(c => c.id === selectedCategory)?.title || selectedCategory} ${selectedBranch !== 'semua' ? `— ${branches.find(b => b.id === selectedBranch)?.name || 'Cabang Terpilih'}` : ''} (${products.length} Unit)`}
             </h2>
-            <p>Stok update otomatis secara realtime dari inventori toko iConicstore</p>
+            <p>
+              {selectedBranch !== 'semua'
+                ? `Stok inventori fisik tersedia di ${branches.find(b => b.id === selectedBranch)?.name || 'cabang terpilih'}. Update otomatis secara realtime.`
+                : 'Stok update otomatis secara realtime dari seluruh inventori cabang toko iConicstore.'}
+            </p>
           </div>
 
-          {selectedCategory !== 'semua' && (
-            <button 
-              type="button"
-              onClick={() => setSelectedCategory('semua')}
-              style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '8px 14px', borderRadius: '999px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}
-            >
-              Tampilkan Semua Kategori ✕
-            </button>
-          )}
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+            {selectedBranch !== 'semua' && (
+              <button 
+                type="button"
+                onClick={() => handleBranchChange('semua')}
+                style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '8px 14px', borderRadius: '999px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}
+              >
+                Lihat Semua Cabang ✕
+              </button>
+            )}
+            {selectedCategory !== 'semua' && (
+              <button 
+                type="button"
+                onClick={() => setSelectedCategory('semua')}
+                style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text-dim)', padding: '8px 14px', borderRadius: '999px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}
+              >
+                Tampilkan Semua Kategori ✕
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Filter Controls Bar */}
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end', background: 'var(--surface)', padding: '16px', borderRadius: '18px', border: '1px solid var(--border)' }}>
           
-          <div style={{ flex: '2 1 260px' }}>
+          <div style={{ flex: '2 1 240px' }}>
             <label htmlFor="storefront-search" style={{ display: 'block', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--text-dim)', marginBottom: '6px' }}>Cari Unit</label>
             <div style={{ position: 'relative' }}>
               <Search style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', width: '16px', height: '16px', color: 'var(--text-dim)' }} />
@@ -563,6 +599,26 @@ export default function WebStorefront({
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={{ width: '100%', boxSizing: 'border-box', background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text)', fontSize: '13px', padding: '10px 14px 10px 38px', borderRadius: '10px', minHeight: '40px' }}
               />
+            </div>
+          </div>
+
+          <div style={{ flex: '1 1 180px' }}>
+            <label htmlFor="storefront-branch" style={{ display: 'block', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--text-dim)', marginBottom: '6px' }}>Lokasi Cabang</label>
+            <div style={{ position: 'relative' }}>
+              <select 
+                id="storefront-branch" 
+                value={selectedBranch}
+                onChange={(e) => handleBranchChange(e.target.value)}
+                style={{ width: '100%', boxSizing: 'border-box', background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text)', fontSize: '13px', padding: '10px 32px 10px 14px', borderRadius: '10px', minHeight: '40px', cursor: 'pointer', appearance: 'none', WebkitAppearance: 'none' }}
+              >
+                <option value="semua">Semua Cabang Toko</option>
+                {branches.map(b => (
+                  <option key={b.id} value={b.id} style={{ background: '#15171B', color: '#F4F5F6' }}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+              <MapPin style={{ width: '14px', height: '14px', position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-dim)' }} />
             </div>
           </div>
 
@@ -602,13 +658,14 @@ export default function WebStorefront({
         {products.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '48px 24px', background: 'var(--surface)', borderRadius: '18px', border: '1px solid var(--border)' }}>
             <div style={{ fontSize: '16px', fontWeight: '700', color: 'var(--text)' }}>Tidak ada unit yang sesuai dengan filter</div>
-            <p style={{ fontSize: '13px', color: 'var(--text-dim)', marginTop: '6px' }}>Coba ubah kata kunci pencarian atau ganti kategori produk.</p>
+            <p style={{ fontSize: '13px', color: 'var(--text-dim)', marginTop: '6px' }}>Coba ubah cabang toko atau ganti kata kunci pencarian.</p>
             <button 
               type="button" 
               onClick={() => {
                 setSelectedCategory('semua');
                 setSelectedCondition('Semua Kondisi');
                 setSelectedSignal('Semua Status');
+                setSelectedBranch('semua');
                 setSearchQuery('');
               }}
               style={{ marginTop: '14px', background: 'var(--accent)', color: 'var(--accent-ink)', padding: '8px 16px', borderRadius: '8px', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}
@@ -640,16 +697,21 @@ export default function WebStorefront({
                     src={p.image} 
                     alt={p.name} 
                     loading="lazy"
+                    decoding="async"
                     style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '16px', transition: 'transform 0.3s ease' }}
                     onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.08)'}
                     onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
                     onError={(e) => {
-                      e.currentTarget.onerror = null;
-                      e.currentTarget.src = getApplePresetPhoto(p.name);
+                      if (e.currentTarget.dataset.failed) return;
+                      e.currentTarget.dataset.failed = 'true';
+                      e.currentTarget.src = getApplePresetPhoto(p.category || p.name);
                     }}
                   />
                   <span style={{ position: 'absolute', top: '12px', left: '12px', background: p.badgeBg, color: p.badgeText, fontSize: '11px', fontWeight: '700', padding: '4px 10px', borderRadius: '999px', zIndex: 2, backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.08)' }}>
                     {p.badge}
+                  </span>
+                  <span style={{ position: 'absolute', top: '12px', right: '12px', background: 'rgba(0,0,0,0.65)', color: '#FFFFFF', fontSize: '10px', fontWeight: '600', padding: '4px 9px', borderRadius: '6px', zIndex: 2, backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    {p.branchName.replace('Cabang ', '')}
                   </span>
                 </div>
 
@@ -858,8 +920,9 @@ export default function WebStorefront({
                   alt={selectedDetailProduct.name} 
                   style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain', padding: '12px' }} 
                   onError={(e) => {
-                    e.currentTarget.onerror = null;
-                    e.currentTarget.src = getApplePresetPhoto(selectedDetailProduct.name);
+                    if (e.currentTarget.dataset.failed) return;
+                    e.currentTarget.dataset.failed = 'true';
+                    e.currentTarget.src = getApplePresetPhoto(selectedDetailProduct.category || selectedDetailProduct.name);
                   }}
                 />
               </div>

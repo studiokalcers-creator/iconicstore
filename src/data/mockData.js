@@ -275,15 +275,16 @@ export const INITIAL_SERIALIZED_UNITS = [
 
 export const getApplePresetPhoto = (nameOrCategory = '') => {
   const lower = String(nameOrCategory || '').toLowerCase();
-  if (lower.includes('16 pro') || lower.includes('16promax')) return 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=600&auto=format&fit=crop&q=80';
-  if (lower.includes('15 pro') || lower.includes('15promax')) return 'https://images.unsplash.com/photo-1510557880182-3d4d3cba35a5?w=600&auto=format&fit=crop&q=80';
-  if (lower.includes('14 pro') || lower.includes('14promax')) return 'https://images.unsplash.com/photo-1663499482523-1c0c1bae4ce1?w=600&auto=format&fit=crop&q=80';
-  if (lower.includes('13') || lower.includes('12') || lower.includes('11')) return 'https://images.unsplash.com/photo-1511707171634-5f897ff02560?w=600&auto=format&fit=crop&q=80';
-  if (lower.includes('ipad')) return 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=600&auto=format&fit=crop&q=80';
-  if (lower.includes('macbook') || lower.includes('mac')) return 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=600&auto=format&fit=crop&q=80';
-  if (lower.includes('watch')) return 'https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?w=600&auto=format&fit=crop&q=80';
-  if (lower.includes('airpods') || lower.includes('audio') || lower.includes('acc') || lower.includes('charger')) return 'https://images.unsplash.com/photo-1600294037681-c80b4cb5b434?w=600&auto=format&fit=crop&q=80';
-  return 'https://images.unsplash.com/photo-1510557880182-3d4d3cba35a5?w=600&auto=format&fit=crop&q=80';
+  if (lower.includes('macbook') || lower.includes('mac') || lower.includes('laptop')) return '/products/m-macbook.png';
+  if (lower.includes('ipad') || lower.includes('tablet')) return '/products/m-ipad.png';
+  if (lower.includes('watch') || lower.includes('jam')) return '/products/m-watch.png';
+  if (lower.includes('airpods') || lower.includes('audio') || lower.includes('tws')) return '/products/m-airpods.png';
+  if (lower.includes('acc') || lower.includes('charger') || lower.includes('kabel') || lower.includes('case') || lower.includes('adaptor')) return '/products/m-accessories.png';
+  if (lower.includes('18') || lower.includes('17') || lower.includes('16')) return '/products/m-ip16pm.jpg';
+  if (lower.includes('15')) return '/products/m-ip15p.jpg';
+  if (lower.includes('14')) return '/products/m-ip14p.jpg';
+  if (lower.includes('13') || lower.includes('12') || lower.includes('11') || lower.includes('xr') || lower.includes('xs') || lower.includes('iphone')) return '/products/m-ip13.jpg';
+  return '/products/m-ip15p.jpg';
 };
 
 
@@ -698,27 +699,27 @@ export const INITIAL_STORE_SETTINGS = {
     ipad: {
       title: 'iPad',
       subtitle: 'Tablet serbaguna & Pro',
-      image: 'https://iosstore.id/assets/pagebuilder/media/2026/07/pb_20260723_014151_8bbf5a7e63.png'
+      image: '/categories/ipad.png'
     },
     macbook: {
       title: 'MacBook',
       subtitle: 'Laptop Apple M-Series',
-      image: 'https://iosstore.id/assets/pagebuilder/media/2026/07/pb_20260723_014158_03273f7226.png'
+      image: '/categories/macbook.png'
     },
     watch: {
       title: 'Apple Watch',
       subtitle: 'Jam pintar Apple watchOS',
-      image: 'https://iosstore.id/assets/pagebuilder/media/2026/07/pb_20260723_014204_af17e5a88f.png'
+      image: '/categories/watch.png'
     },
     audio: {
       title: 'AirPods',
       subtitle: 'Audio nirkabel & Spatial',
-      image: 'https://iosstore.id/assets/pagebuilder/media/2026/07/pb_20260723_014236_b6ad17f6ce.png'
+      image: '/categories/audio.png'
     },
     accessories: {
       title: 'Aksesoris',
       subtitle: 'Pelengkap perangkat original',
-      image: 'https://iosstore.id/assets/pagebuilder/media/2026/07/pb_20260723_014240_410329950c.png'
+      image: '/categories/accessories.png'
     }
   }
 };
@@ -732,27 +733,27 @@ export const DEFAULT_CATEGORY_CARDS = {
   ipad: {
     title: 'iPad',
     subtitle: 'Tablet serbaguna & Pro',
-    image: 'https://iosstore.id/assets/pagebuilder/media/2026/07/pb_20260723_014151_8bbf5a7e63.png'
+    image: '/categories/ipad.png'
   },
   macbook: {
     title: 'MacBook',
     subtitle: 'Laptop Apple M-Series',
-    image: 'https://iosstore.id/assets/pagebuilder/media/2026/07/pb_20260723_014158_03273f7226.png'
+    image: '/categories/macbook.png'
   },
   watch: {
     title: 'Apple Watch',
     subtitle: 'Jam pintar Apple watchOS',
-    image: 'https://iosstore.id/assets/pagebuilder/media/2026/07/pb_20260723_014204_af17e5a88f.png'
+    image: '/categories/watch.png'
   },
   audio: {
     title: 'AirPods',
     subtitle: 'Audio nirkabel & Spatial',
-    image: 'https://iosstore.id/assets/pagebuilder/media/2026/07/pb_20260723_014236_b6ad17f6ce.png'
+    image: '/categories/audio.png'
   },
   accessories: {
     title: 'Aksesoris',
     subtitle: 'Pelengkap perangkat original',
-    image: 'https://iosstore.id/assets/pagebuilder/media/2026/07/pb_20260723_014240_410329950c.png'
+    image: '/categories/accessories.png'
   }
 };
 
