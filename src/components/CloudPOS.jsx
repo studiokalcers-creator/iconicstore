@@ -30,7 +30,9 @@ import {
   ShoppingCart,
   Sparkles,
   Smartphone,
-  RefreshCw
+  RefreshCw,
+  Upload,
+  ImageIcon
 } from 'lucide-react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { formatRupiah, playBarcodeBeep } from '../utils/barcodePdfEngine';
@@ -59,12 +61,16 @@ export default function CloudPOS({
   const [activePreorder, setActivePreorder] = useState(null);
   const [barcodeInput, setBarcodeInput] = useState('');
   
-  // Real Camera Barcode Scanner State (html5-qrcode ZXing Engine)
+  // Real Camera Barcode Scanner State (html5-qrcode ZXing Engine & Native Photo Capture)
   const [isCameraScannerOpen, setIsCameraScannerOpen] = useState(false);
   const [cameraError, setCameraError] = useState('');
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [cameraManualCode, setCameraManualCode] = useState('');
   const [cameraRetryCount, setCameraRetryCount] = useState(0);
+  const [isProcessingFile, setIsProcessingFile] = useState(false);
+  const photoInputRef = useRef(null);
+  const galleryInputRef = useRef(null);
+  const availableUnitsRef = useRef([]);
   const html5QrCodeRef = useRef(null);
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -97,6 +103,7 @@ export default function CloudPOS({
 
   // Available stock in this branch
   const availableUnits = units.filter(u => u.status === 'available');
+  availableUnitsRef.current = availableUnits;
 
   // Selected reseller
   const currentReseller = resellers.find(r => r.id === selectedResellerId);
@@ -197,6 +204,118 @@ export default function CloudPOS({
     showToast(`${unit.modelName} berhasil dimasukkan ke keranjang kasir.`, 'success', 'Scan Berhasil');
   };
 
+  // Central Barcode Processor (supports Live Camera, Native Photo, and Manual Input)
+  const processDecodedBarcode = (rawCode) => {
+    const rawVal = String(rawCode || '').trim();
+    if (!rawVal) return;
+    const cleanVal = rawVal.toUpperCase();
+
+    // Matching against unit barcodeCode, IMEI, serialNumber, or sub-matches for URL/prefix
+    const matched = availableUnitsRef.current.find(u => {
+      const barcode = String(u.barcodeCode || '').trim().toUpperCase();
+      const imei = String(u.imei || '').trim().toUpperCase();
+      const serial = String(u.serialNumber || '').trim().toUpperCase();
+      const id = String(u.id || '').trim().toUpperCase();
+
+      if (barcode && (cleanVal === barcode || cleanVal.endsWith(barcode) || cleanVal.includes(barcode))) return true;
+      if (imei && (cleanVal === imei || cleanVal.includes(imei))) return true;
+      if (serial && (cleanVal === serial || cleanVal.includes(serial))) return true;
+      if (id && cleanVal === id) return true;
+      return false;
+    });
+
+    if (matched) {
+      try { playBarcodeBeep(); } catch (e) {}
+      if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
+        html5QrCodeRef.current.stop().catch(() => {});
+      }
+      addToCart(matched);
+      setIsCameraScannerOpen(false);
+      showToast(`Unit ${matched.modelName} berhasil ditambahkan ke keranjang!`, 'success', 'Barcode Terdeteksi');
+    } else {
+      showToast(`Kode "${rawVal}" terdeteksi, namun tidak cocok dengan stok ready di cabang ini.`, 'info');
+      setCameraError(`Kode "${rawVal}" terdeteksi, namun unit tidak ditemukan di stok ready cabang ${activeBranch?.name || ''}.`);
+    }
+  };
+
+  // Native Photo / File Barcode Scanner (Layer 1: Native BarcodeDetector, Layer 2: Html5Qrcode ZXing)
+  const handleFileScan = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    e.target.value = ''; // Reset for re-triggering
+
+    setIsProcessingFile(true);
+    setCameraError('');
+
+    try {
+      let decodedText = null;
+
+      // Layer 1: Native BarcodeDetector API (Zero-dependency & instant on modern iOS/Android/Chrome)
+      if ('BarcodeDetector' in window) {
+        try {
+          const detector = new window.BarcodeDetector({
+            formats: ['qr_code', 'code_128', 'code_39', 'ean_13', 'ean_8', 'upc_a', 'upc_e']
+          });
+          const bitmap = await createImageBitmap(file);
+          const detected = await detector.detect(bitmap);
+          if (detected && detected.length > 0 && detected[0].rawValue) {
+            decodedText = detected[0].rawValue;
+          }
+        } catch (detectorErr) {
+          console.warn('Native BarcodeDetector pass failed, falling back to html5-qrcode:', detectorErr);
+        }
+      }
+
+      // Layer 2: Robust ZXing File Scan via Html5Qrcode sandbox container
+      if (!decodedText) {
+        const formatsToSupport = [
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.CODE_39,
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.UPC_A,
+          Html5QrcodeSupportedFormats.UPC_E,
+          Html5QrcodeSupportedFormats.QR_CODE
+        ];
+
+        let sandbox = document.getElementById('pos-barcode-file-sandbox');
+        if (!sandbox) {
+          sandbox = document.createElement('div');
+          sandbox.id = 'pos-barcode-file-sandbox';
+          sandbox.style.position = 'absolute';
+          sandbox.style.left = '-9999px';
+          sandbox.style.top = '-9999px';
+          sandbox.style.width = '300px';
+          sandbox.style.height = '300px';
+          sandbox.style.visibility = 'hidden';
+          document.body.appendChild(sandbox);
+        }
+
+        const fileScanner = new Html5Qrcode('pos-barcode-file-sandbox', {
+          formatsToSupport,
+          verbose: false
+        });
+
+        try {
+          decodedText = await fileScanner.scanFile(file, false);
+        } finally {
+          try { await fileScanner.clear(); } catch (_) {}
+        }
+      }
+
+      if (decodedText) {
+        processDecodedBarcode(decodedText);
+      } else {
+        setCameraError('Barcode tidak terbaca pada foto tersebut. Pastikan foto tegak, jelas, dan barcode tampak penuh.');
+      }
+    } catch (err) {
+      console.warn('File barcode scan error:', err);
+      setCameraError('Barcode tidak terbaca pada foto tersebut. Pastikan foto tegak, tidak blur, dan barcode tampak penuh.');
+    } finally {
+      setIsProcessingFile(false);
+    }
+  };
+
   // Live Camera Barcode Scanner via html5-qrcode (ZXing Engine supporting Code-128, Code-39, EAN, UPC, QR on iOS Safari)
   useEffect(() => {
     let isMounted = true;
@@ -253,26 +372,18 @@ export default function CloudPOS({
           scannerInstance = scanner;
           html5QrCodeRef.current = scanner;
 
-          const scanConfig = { fps: 15 };
+          // Optimized scanConfig with targeted qrbox to drastically reduce CPU load on mobile iOS
+          const scanConfig = { 
+            fps: 10,
+            qrbox: (viewfinderWidth, viewfinderHeight) => ({
+              width: Math.min(Math.floor(viewfinderWidth * 0.85), 260),
+              height: Math.min(Math.floor(viewfinderHeight * 0.65), 140)
+            })
+          };
+
           const onScanSuccess = (decodedText) => {
             if (!isMounted) return;
-            const rawVal = String(decodedText || '').trim();
-            const matched = availableUnits.find(u => 
-              (u.barcodeCode && u.barcodeCode.toUpperCase() === rawVal.toUpperCase()) ||
-              u.imei === rawVal ||
-              (u.serialNumber && u.serialNumber.toUpperCase() === rawVal.toUpperCase())
-            );
-            if (matched) {
-              try { playBarcodeBeep(); } catch (e) {}
-              if (scanner && scanner.isScanning) {
-                scanner.stop().catch(() => {});
-              }
-              addToCart(matched);
-              setIsCameraScannerOpen(false);
-              showToast(`Unit ${matched.modelName} berhasil ditambahkan ke keranjang!`, 'success', 'Barcode Terdeteksi');
-            } else {
-              showToast(`Kode barcode "${rawVal}" terdeteksi, namun tidak cocok dengan stok unit.`, 'info');
-            }
+            processDecodedBarcode(decodedText);
           };
 
           try {
@@ -342,7 +453,7 @@ export default function CloudPOS({
       }
       setIsCameraActive(false);
     }
-  }, [isCameraScannerOpen, cameraRetryCount, availableUnits]);
+  }, [isCameraScannerOpen, cameraRetryCount]);
 
   // Remove unit from cart
   const removeFromCart = (unitId) => {
@@ -1347,6 +1458,92 @@ export default function CloudPOS({
               </div>
             </div>
 
+            {/* Hidden Native File & Camera Inputs for iOS/Android */}
+            <input 
+              ref={photoInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handleFileScan}
+              style={{ display: 'none' }}
+            />
+            <input 
+              ref={galleryInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFileScan}
+              style={{ display: 'none' }}
+            />
+
+            {/* Dual Action: Ambil Foto Barcode (Native Apple Camera) & Pilih dari Galeri */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+              <button
+                type="button"
+                onClick={() => photoInputRef.current && photoInputRef.current.click()}
+                disabled={isProcessingFile}
+                style={{
+                  background: 'linear-gradient(135deg, rgba(10, 132, 255, 0.22) 0%, rgba(10, 132, 255, 0.12) 100%)',
+                  border: '1px solid rgba(10, 132, 255, 0.45)',
+                  color: 'var(--accent)',
+                  padding: '11px 8px',
+                  borderRadius: '10px',
+                  fontSize: '12.5px',
+                  fontWeight: '700',
+                  cursor: isProcessingFile ? 'wait' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                {isProcessingFile ? (
+                  <>
+                    <RefreshCw style={{ width: '15px', height: '15px', animation: 'spin 1s linear infinite' }} />
+                    <span>Menganalisis...</span>
+                  </>
+                ) : (
+                  <>
+                    <Camera style={{ width: '15px', height: '15px' }} />
+                    <span>Ambil Foto Barcode</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => galleryInputRef.current && galleryInputRef.current.click()}
+                disabled={isProcessingFile}
+                style={{
+                  background: 'var(--surface-2)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text)',
+                  padding: '11px 8px',
+                  borderRadius: '10px',
+                  fontSize: '12.5px',
+                  fontWeight: '600',
+                  cursor: isProcessingFile ? 'wait' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px'
+                }}
+              >
+                <Upload style={{ width: '15px', height: '15px', color: 'var(--text-dim)' }} />
+                <span>Pilih dari Galeri</span>
+              </button>
+            </div>
+
+            <div style={{ 
+              fontSize: '11px', 
+              color: 'var(--text-dim)', 
+              textAlign: 'center', 
+              marginBottom: '14px',
+              lineHeight: '1.4'
+            }}>
+              Gunakan <strong>Ambil Foto Barcode</strong> jika barcode di layar monitor silau atau sulit autofokus.
+            </div>
+
             {cameraError && (
               <div style={{ marginBottom: '14px' }}>
                 <div style={{
@@ -1392,7 +1589,7 @@ export default function CloudPOS({
 
                 {/* iPhone Safari Step-by-Step Guide */}
                 <div style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '10px', padding: '12px 14px', fontSize: '11.5px', lineHeight: '1.5', color: 'var(--text-dim)' }}>
-                  <strong style={{ color: 'var(--text)', display: 'block', marginBottom: '6px' }}>📱 Panduan Mengaktifkan Kamera di Safari iOS:</strong>
+                  <strong style={{ color: 'var(--text)', display: 'block', marginBottom: '6px' }}>Panduan Mengaktifkan Kamera di Safari iOS:</strong>
                   <ol style={{ paddingLeft: '16px', margin: 0, display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     <li>Tekan ikon <strong>aA</strong> (atau gembok) di sebelah kiri bilah URL Safari.</li>
                     <li>Pilih menu <strong>Pengaturan Situs Web (Website Settings)</strong>.</li>
@@ -1407,19 +1604,8 @@ export default function CloudPOS({
             <form onSubmit={(e) => {
               e.preventDefault();
               if (!cameraManualCode.trim()) return;
-              const clean = cameraManualCode.trim().toUpperCase();
-              const found = availableUnits.find(u => 
-                u.barcodeCode.toUpperCase() === clean || 
-                u.imei === clean || 
-                u.serialNumber.toUpperCase() === clean
-              );
-              if (found) {
-                addToCart(found);
-                setIsCameraScannerOpen(false);
-                setCameraManualCode('');
-              } else {
-                showToast(`Barcode / IMEI "${cameraManualCode}" tidak ditemukan.`, 'error');
-              }
+              processDecodedBarcode(cameraManualCode);
+              setCameraManualCode('');
             }} style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
               <input 
                 type="text" 
