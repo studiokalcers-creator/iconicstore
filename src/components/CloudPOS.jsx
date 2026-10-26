@@ -26,6 +26,7 @@ import {
   DollarSign,
   Clock,
   Receipt,
+  FileText,
   Calendar,
   Package,
   ShoppingCart,
@@ -37,18 +38,21 @@ import {
 } from 'lucide-react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import jsQR from 'jsqr';
-import { formatRupiah, playBarcodeBeep } from '../utils/barcodePdfEngine';
+import { formatRupiah, playBarcodeBeep, parseToIso } from '../utils/barcodePdfEngine';
 import confetti from 'canvas-confetti';
 import { showToast } from './AppleAlertToast';
 
 export default function CloudPOS({ 
   units = [], 
   resellers = [], 
+  salesHistory = [],
+  branches = [],
   onCompleteSale, 
   activeBranch = { id: 'b1', name: 'Cabang Surabaya Pusat' },
   posPrefill,
   onClearPosPrefill,
-  storeSettings = {}
+  storeSettings = {},
+  setCurrentTab
 }) {
   // Pricing Mode: 'retail' | 'reseller'
   const [pricingMode, setPricingMode] = useState('retail');
@@ -96,6 +100,10 @@ export default function CloudPOS({
   
   // Completed receipt view
   const [completedTransaction, setCompletedTransaction] = useState(null);
+
+  // Cashier History Modal
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [historySearchQuery, setHistorySearchQuery] = useState('');
 
   // Cashier shift state
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
@@ -781,12 +789,16 @@ export default function CloudPOS({
       return;
     }
 
+    const now = new Date();
     const transactionData = {
       id: `TRX-${Date.now().toString().slice(-8)}`,
-      date: new Date().toLocaleString('id-ID'),
+      date: now.toLocaleString('id-ID'),
+      isoDate: now.toISOString(),
+      branchId: activeBranch.id,
       branchName: activeBranch.name,
       pricingMode,
       reseller: currentReseller || null,
+      resellerId: currentReseller?.id || null,
       preorderId: activePreorder?.id || null,
       preorderDp: activePreorder ? Number(activePreorder.dpAmount || 0) : 0,
       customerName: customerName || (pricingMode === 'reseller' ? currentReseller?.name : 'Pelanggan Umum'),
@@ -831,6 +843,24 @@ export default function CloudPOS({
     setActivePreorder(null);
     setCashGiven('');
     setIsCheckoutOpen(false);
+  };
+
+  // Reset & return to clean POS cashier catalog
+  const handleFinishAndNewTransaction = () => {
+    setCompletedTransaction(null);
+    setMobilePosTab('catalog'); // Switch back to product catalog / barcode scanner on mobile
+    setCart([]);
+    setCustomerName('');
+    setCustomerPhone('');
+    setDiscountValue(0);
+    setDiscountType('nominal');
+    setIsDiscountAuthorized(false);
+    setActivePreorder(null);
+    setCashGiven('');
+    setIsCheckoutOpen(false);
+    setBarcodeInput('');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    showToast('Siap untuk transaksi kasir baru.', 'info', 'Kasir POS Siap');
   };
 
   const handleSendWhatsAppReceipt = () => {
@@ -974,6 +1004,27 @@ export default function CloudPOS({
           <div className="pos-shift-info-bar">
             <button
               type="button"
+              onClick={() => setIsHistoryModalOpen(true)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: 'var(--surface-2)',
+                border: '1px solid var(--border)',
+                color: 'var(--text)',
+                padding: '7px 12px',
+                borderRadius: '8px',
+                fontSize: '12px',
+                fontWeight: '600',
+                cursor: 'pointer'
+              }}
+            >
+              <FileText style={{ width: '13px', height: '13px', color: 'var(--accent)' }} />
+              <span>Riwayat Nota ({salesHistory.length})</span>
+            </button>
+            <span style={{ color: 'var(--border)' }}>|</span>
+            <button
+              type="button"
               onClick={() => setIsShiftModalOpen(true)}
               style={{
                 display: 'inline-flex',
@@ -1020,7 +1071,7 @@ export default function CloudPOS({
             style={{ position: 'relative' }}
           >
             <ShoppingCart style={{ width: '15px', height: '15px' }} />
-            <span>Keranjang Kasir ({cart.length})</span>
+            <span>Keranjang ({cart.length})</span>
             {cart.length > 0 && (
               <span style={{
                 background: '#0A84FF',
@@ -1028,11 +1079,19 @@ export default function CloudPOS({
                 borderRadius: '999px',
                 padding: '1px 6px',
                 fontSize: '10px',
-                fontWeight: '800'
+                fontWeight: '700'
               }}>
                 {cart.length}
               </span>
             )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsHistoryModalOpen(true)}
+            className="pos-mobile-tab-btn"
+          >
+            <FileText style={{ width: '15px', height: '15px' }} />
+            <span>Riwayat ({salesHistory.length})</span>
           </button>
         </div>
 
@@ -2871,18 +2930,27 @@ export default function CloudPOS({
 
               <button
                 type="button"
-                onClick={() => setCompletedTransaction(null)}
+                onClick={handleFinishAndNewTransaction}
                 style={{
                   width: '100%',
-                  background: 'transparent',
+                  background: 'var(--accent)',
                   border: 'none',
-                  color: 'var(--text-dim)',
-                  padding: '8px',
-                  fontSize: '12px',
-                  cursor: 'pointer'
+                  color: 'var(--accent-ink)',
+                  padding: '12px',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  fontWeight: '700',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 14px rgba(0, 113, 227, 0.3)',
+                  transition: 'all 0.15s ease'
                 }}
               >
-                Selesai &amp; Transaksi Baru
+                <RotateCcw style={{ width: '15px', height: '15px' }} />
+                <span>Selesai &amp; Transaksi Baru</span>
               </button>
             </div>
 
@@ -3149,6 +3217,174 @@ export default function CloudPOS({
                 </div>
               </div>
             )}
+
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 6: Riwayat Transaksi Kasir */}
+      {isHistoryModalOpen && (
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: '620px', maxHeight: '88vh', display: 'flex', flexDirection: 'column', padding: '20px', background: 'var(--surface)', border: '1px solid var(--border)' }}>
+            
+            {/* Modal Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: '14px', marginBottom: '14px' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Receipt style={{ width: '18px', height: '18px', color: 'var(--accent)' }} />
+                  <span>Riwayat Transaksi Kasir</span>
+                </h3>
+                <span style={{ fontSize: '11.5px', color: 'var(--text-dim)', marginTop: '2px', display: 'block' }}>
+                  {salesHistory.length} Transaksi Tercatat • {activeBranch.name}
+                </span>
+              </div>
+              <button 
+                type="button"
+                onClick={() => {
+                  setIsHistoryModalOpen(false);
+                  setHistorySearchQuery('');
+                }}
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', padding: '4px' }}
+              >
+                <X style={{ width: '18px', height: '18px' }} />
+              </button>
+            </div>
+
+            {/* Search Box */}
+            <div style={{ marginBottom: '14px', position: 'relative' }}>
+              <Search style={{ width: '15px', height: '15px', position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-dim)' }} />
+              <input
+                type="text"
+                placeholder="Cari nomor nota, nama pembeli, nomor HP, atau IMEI..."
+                value={historySearchQuery}
+                onChange={(e) => setHistorySearchQuery(e.target.value)}
+                style={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  background: 'var(--surface-2)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text)',
+                  fontSize: '12.5px',
+                  borderRadius: '8px',
+                  padding: '9px 12px 9px 36px'
+                }}
+              />
+            </div>
+
+            {/* Transactions List */}
+            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px', paddingRight: '4px' }}>
+              {salesHistory.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-dim)' }}>
+                  <FileText style={{ width: '32px', height: '32px', margin: '0 auto 8px', opacity: 0.4 }} />
+                  <p style={{ margin: 0, fontSize: '13px' }}>Belum ada riwayat transaksi penjualan di kasir.</p>
+                </div>
+              ) : (
+                salesHistory
+                  .filter(tx => {
+                    if (!historySearchQuery.trim()) return true;
+                    const q = historySearchQuery.toLowerCase();
+                    const idMatch = String(tx.id || '').toLowerCase().includes(q);
+                    const nameMatch = String(tx.customerName || '').toLowerCase().includes(q);
+                    const phoneMatch = String(tx.customerPhone || '').toLowerCase().includes(q);
+                    const imeiMatch = Array.isArray(tx.items) && tx.items.some(it => 
+                      String(it.imei || '').toLowerCase().includes(q) ||
+                      String(it.modelName || '').toLowerCase().includes(q)
+                    );
+                    return idMatch || nameMatch || phoneMatch || imeiMatch;
+                  })
+                  .map(tx => (
+                    <div 
+                      key={tx.id}
+                      style={{
+                        background: 'var(--surface-2)',
+                        border: '1px solid var(--border)',
+                        borderRadius: '10px',
+                        padding: '12px 14px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '8px'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontFamily: 'var(--font-mono)', fontWeight: '700', fontSize: '12.5px', color: 'var(--accent)' }}>
+                            {tx.id}
+                          </span>
+                          <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>
+                            {tx.date}
+                          </span>
+                        </div>
+                        <span style={{
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          background: tx.pricingMode === 'reseller' ? 'rgba(147, 51, 234, 0.15)' : 'rgba(0, 113, 227, 0.12)',
+                          color: tx.pricingMode === 'reseller' ? '#C084FC' : 'var(--accent)',
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          textTransform: 'uppercase'
+                        }}>
+                          {tx.pricingMode === 'reseller' ? 'Reseller' : 'Retail'} • {tx.paymentMethod?.toUpperCase()}
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
+                        <div>
+                          <span style={{ color: 'var(--text-dim)', fontSize: '11px' }}>Pelanggan: </span>
+                          <strong style={{ color: 'var(--text)' }}>{tx.customerName || 'Pelanggan Umum'}</strong>
+                          {tx.customerPhone && tx.customerPhone !== '-' && (
+                            <span style={{ color: 'var(--text-dim)', fontSize: '11px' }}> ({tx.customerPhone})</span>
+                          )}
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <span style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text)', fontFamily: 'var(--font-mono)' }}>
+                            {formatRupiah(tx.total)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Items sold */}
+                      {Array.isArray(tx.items) && tx.items.length > 0 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingTop: '4px', borderTop: '1px dashed var(--border)' }}>
+                          {tx.items.map((it, idx) => (
+                            <div key={idx} style={{ fontSize: '11px', color: 'var(--text-dim)', display: 'flex', justifyContent: 'space-between' }}>
+                              <span>{it.modelName} (IMEI: {it.imei})</span>
+                              <span style={{ fontWeight: '600', color: 'var(--text)' }}>{formatRupiah(it.appliedPrice)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Actions: View / Reprint Receipt */}
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '6px' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCompletedTransaction(tx);
+                            setIsHistoryModalOpen(false);
+                          }}
+                          style={{
+                            background: 'var(--surface)',
+                            border: '1px solid var(--border)',
+                            color: 'var(--text)',
+                            padding: '6px 12px',
+                            borderRadius: '6px',
+                            fontSize: '11.5px',
+                            fontWeight: '600',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <Printer style={{ width: '13px', height: '13px' }} />
+                          <span>Cetak / Kirim Ulang Nota</span>
+                        </button>
+                      </div>
+
+                    </div>
+                  ))
+              )}
+            </div>
 
           </div>
         </div>

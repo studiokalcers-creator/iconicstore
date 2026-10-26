@@ -2,7 +2,7 @@ import jsPDF from 'jspdf';
 import JsBarcode from 'jsbarcode';
 import QRCode from 'qrcode';
 
-export { formatRupiah, formatDateIndo } from './formatters';
+export { formatRupiah, formatDateIndo, parseToIso } from './formatters';
 
 /**
  * Authentic retail scanner audio beep using Web Audio API (synthesized frequency)

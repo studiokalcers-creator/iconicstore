@@ -69,7 +69,7 @@ import {
   Copy,
   ExternalLink
 } from 'lucide-react';
-import { formatRupiah } from '../utils/formatters';
+import { formatRupiah, parseToIso } from '../utils/formatters';
 import { INITIAL_STORE_SETTINGS, INITIAL_TRADE_IN_VALUATIONS, getApplePresetPhoto, DEFAULT_CATEGORY_CARDS } from '../data/mockData';
 import { showToast } from './AppleAlertToast';
 import MasterPhotoField from './MasterPhotoField';
@@ -714,23 +714,45 @@ export default function OwnerPortal({
     return salesHistory.filter(item => {
       if (!item) return false;
       // Branch filter
-      if (branchFilter !== 'all' && item.branchId && item.branchId !== branchFilter) {
-        return false;
+      if (branchFilter !== 'all') {
+        if (item.branchId) {
+          if (item.branchId !== branchFilter) return false;
+        } else if (item.branchName) {
+          const bMatch = (branches || []).find(b => b.id === branchFilter);
+          if (bMatch && !item.branchName.toLowerCase().includes(bMatch.name.toLowerCase())) {
+            return false;
+          }
+        }
       }
 
       // Date filter
-      const itemDate = String(item.date || '');
-      if (dateFilter === 'today') {
-        return itemDate.startsWith('2026-10-23') || itemDate.includes('23/10/2026');
-      } else if (dateFilter === '7days') {
-        return true; // Mock dataset covers this week
-      } else if (dateFilter === 'month') {
-        return itemDate.includes('2026-10') || itemDate.includes('/10/2026');
+      if (dateFilter !== 'all') {
+        const itemDateStr = String(item.isoDate || item.date || '');
+        const itemTime = new Date(parseToIso(itemDateStr)).getTime();
+        const now = new Date();
+
+        if (dateFilter === 'today') {
+          const itemDt = new Date(itemTime);
+          const isToday = (
+            itemDt.getFullYear() === now.getFullYear() &&
+            itemDt.getMonth() === now.getMonth() &&
+            itemDt.getDate() === now.getDate()
+          ) || itemDateStr.includes('2026-10-23');
+          if (!isToday) return false;
+        } else if (dateFilter === '7days') {
+          const sevenDaysAgo = now.getTime() - 7 * 24 * 60 * 60 * 1000;
+          if (itemTime < sevenDaysAgo) return false;
+        } else if (dateFilter === 'month') {
+          const itemDt = new Date(itemTime);
+          const isThisMonth = itemDt.getFullYear() === now.getFullYear() &&
+                              itemDt.getMonth() === now.getMonth();
+          if (!isThisMonth && !itemDateStr.includes('2026-10')) return false;
+        }
       }
 
       return true;
     });
-  }, [salesHistory, dateFilter, branchFilter]);
+  }, [salesHistory, dateFilter, branchFilter, branches]);
 
   // Aggregate Financial Analytics
   const analytics = useMemo(() => {

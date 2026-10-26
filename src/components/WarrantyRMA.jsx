@@ -48,7 +48,7 @@ export default function WarrantyRMA({ units, salesHistory }) {
         customerName: foundSale.customerName,
         cashier: foundSale.cashierName,
         warrantyEnd: foundSale.warrantyEnd,
-        isWarrantyActive: new Date(foundSale.warrantyEnd) >= new Date('2026-10-23'),
+        isWarrantyActive: new Date(foundSale.warrantyEnd) >= new Date(),
         storeWarranty: '1 Bulan Tukar Unit Toko',
         signalStatus: 'Resmi Indonesia (iBox) — Permanen'
       });

@@ -14,6 +14,7 @@ import OwnerPortal from './components/OwnerPortal';
 import OwnerGateView from './components/OwnerGateView';
 import ErrorBoundary from './components/ErrorBoundary';
 import AppleAlertToast from './components/AppleAlertToast';
+import { parseToIso } from './utils/formatters';
 import { 
   INITIAL_SERIALIZED_UNITS, 
   INITIAL_RESELLERS, 
@@ -161,7 +162,50 @@ export default function App() {
         setUnits(cloudData.units);
       }
       if (cloudData.salesHistory && Array.isArray(cloudData.salesHistory) && cloudData.salesHistory.length > 0) {
-        setSalesHistory(cloudData.salesHistory);
+        setSalesHistory(prev => {
+          const map = new Map();
+          // Keep local sales history so offline / recent transactions are never erased
+          (prev || []).forEach(s => { if (s?.id) map.set(s.id, s); });
+          // Merge cloud records
+          cloudData.salesHistory.forEach(s => { if (s?.id) map.set(s.id, s); });
+          const merged = Array.from(map.values());
+          return merged.sort((a, b) => {
+            const timeA = new Date(parseToIso(a.isoDate || a.date)).getTime() || 0;
+            const timeB = new Date(parseToIso(b.isoDate || b.date)).getTime() || 0;
+            return timeB - timeA;
+          });
+        });
+
+        // Automatically push any local transactions that failed to reach Supabase earlier
+        const client = getSupabaseClient();
+        if (client) {
+          const cloudIds = new Set(cloudData.salesHistory.map(s => s.id));
+          const localSales = safeLoad('iconicstore_sales', [], Array.isArray);
+          const unsynced = localSales.filter(s => s?.id && !cloudIds.has(s.id));
+          if (unsynced.length > 0) {
+            unsynced.forEach(tx => {
+              client.from('sales').upsert([{
+                id: tx.id,
+                date: parseToIso(tx.isoDate || tx.date),
+                branch_id: tx.branchId || null,
+                branch_name: tx.branchName || '',
+                pricing_mode: tx.pricingMode || 'retail',
+                reseller_id: tx.reseller?.id || tx.resellerId || null,
+                customer_name: tx.customerName || '',
+                customer_phone: tx.customerPhone || '',
+                subtotal: tx.subtotal || 0,
+                discount_amount: tx.discountAmount || 0,
+                total: tx.total || 0,
+                payment_method: tx.paymentMethod || '',
+                cash_given: tx.cashGiven || 0,
+                change_amount: tx.changeAmount || 0,
+                is_dropship_receipt: !!tx.isDropshipReceipt,
+                cashier_name: tx.cashierName || '',
+                items: tx.items || []
+              }]).catch(() => {});
+            });
+          }
+        }
       }
       if (cloudData.preorders && Array.isArray(cloudData.preorders) && cloudData.preorders.length > 0) {
         setPreorders(cloudData.preorders);
@@ -475,13 +519,14 @@ export default function App() {
     // 5. Real-time push to Supabase Cloud
     const client = getSupabaseClient();
     if (client) {
+      const validIsoDate = parseToIso(transaction.isoDate || transaction.date);
       client.from('sales').upsert([{
         id: transaction.id,
-        date: transaction.date || new Date().toISOString(),
+        date: validIsoDate,
         branch_id: transaction.branchId || null,
         branch_name: transaction.branchName || '',
         pricing_mode: transaction.pricingMode || 'retail',
-        reseller_id: transaction.reseller?.id || null,
+        reseller_id: transaction.reseller?.id || transaction.resellerId || null,
         customer_name: transaction.customerName || '',
         customer_phone: transaction.customerPhone || '',
         subtotal: transaction.subtotal || 0,
@@ -493,7 +538,9 @@ export default function App() {
         is_dropship_receipt: !!transaction.isDropshipReceipt,
         cashier_name: transaction.cashierName || '',
         items: transaction.items || []
-      }]).catch(() => {});
+      }]).catch((err) => {
+        console.error('Supabase sales push error:', err);
+      });
 
       soldUnitIds.forEach(uId => {
         client.from('units').update({ status: 'sold' }).eq('id', uId).catch(() => {});
@@ -627,11 +674,14 @@ export default function App() {
           <CloudPOS
             units={units}
             resellers={resellers}
+            salesHistory={salesHistory}
+            branches={branches}
             onCompleteSale={handleCompleteSale}
             activeBranch={activeBranch}
             posPrefill={posPrefill}
             onClearPosPrefill={handleClearPosPrefill}
             storeSettings={storeSettings}
+            setCurrentTab={setCurrentTab}
           />
         )}
 
