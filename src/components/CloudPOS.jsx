@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { 
   Barcode, 
   Camera, 
@@ -59,7 +59,9 @@ export default function CloudPOS({
 
   // Cart state
   const [cart, setCart] = useState([]);
-  const [discountAmount, setDiscountAmount] = useState(0);
+  const [discountType, setDiscountType] = useState('nominal'); // 'nominal' (Rp) | 'percent' (%)
+  const [discountValue, setDiscountValue] = useState(0);
+  const [isDiscountAuthorized, setIsDiscountAuthorized] = useState(false);
   const [activePreorder, setActivePreorder] = useState(null);
   const [barcodeInput, setBarcodeInput] = useState('');
   
@@ -180,10 +182,9 @@ export default function CloudPOS({
       };
 
       setCart([cartItem]);
-
-      if (po.dpAmount > 0) {
-        setDiscountAmount(Number(po.dpAmount));
-      }
+      setDiscountValue(0);
+      setDiscountType('nominal');
+      setIsDiscountAuthorized(false);
 
       showToast(`Pesanan ${po.modelRequested} (Pre-Order: ${po.customerName}) otomatis dimasukkan ke keranjang dengan potongan DP ${formatRupiah(po.dpAmount)}.`, 'success', 'Pelunasan Pre-Order');
     }
@@ -695,9 +696,10 @@ export default function CloudPOS({
   const removeFromCart = (unitId) => {
     setCart(prev => {
       const remaining = prev.filter(item => item.id !== unitId);
-      if (remaining.length === 0 && activePreorder) {
-        setActivePreorder(null);
-        setDiscountAmount(0);
+      if (remaining.length === 0) {
+        if (activePreorder) setActivePreorder(null);
+        setDiscountValue(0);
+        setIsDiscountAuthorized(false);
       }
       return remaining;
     });
@@ -722,9 +724,23 @@ export default function CloudPOS({
     }
   };
 
-  // Calculate totals
+  // Calculate totals & effective discount (supports Nominal Rp & Percent %)
   const subtotal = cart.reduce((acc, item) => acc + item.appliedPrice, 0);
-  const total = Math.max(0, subtotal - Number(discountAmount || 0));
+
+  const effectiveDiscount = useMemo(() => {
+    if (activePreorder) {
+      return Number(activePreorder.dpAmount || 0);
+    }
+    const val = Number(discountValue) || 0;
+    if (val <= 0) return 0;
+    if (discountType === 'percent') {
+      const clampedPct = Math.min(100, Math.max(0, val));
+      return Math.min(subtotal, Math.round((subtotal * clampedPct) / 100));
+    }
+    return Math.min(subtotal, Math.max(0, val));
+  }, [activePreorder, discountType, discountValue, subtotal]);
+
+  const total = Math.max(0, subtotal - effectiveDiscount);
   const changeAmount = Number(cashGiven || 0) - total;
 
   // Anti-fraud PIN check (Supervisor Authorization)
@@ -734,10 +750,13 @@ export default function CloudPOS({
     if (String(supervisorPin).trim() === String(validSpvPin).trim()) {
       if (supervisorAction === 'void') {
         setCart([]);
-        setDiscountAmount(0);
+        setDiscountValue(0);
+        setDiscountType('nominal');
+        setIsDiscountAuthorized(false);
         setActivePreorder(null);
       } else if (supervisorAction === 'discount') {
-        // Authorized high discount
+        setIsDiscountAuthorized(true);
+        setIsCheckoutOpen(true);
       }
       setIsSupervisorModalOpen(false);
       setSupervisorPin('');
@@ -774,7 +793,10 @@ export default function CloudPOS({
       customerPhone: customerPhone || currentReseller?.phone || '-',
       items: [...cart],
       subtotal,
-      discountAmount: Number(discountAmount || 0),
+      discountAmount: effectiveDiscount,
+      discountType: activePreorder ? 'preorder_dp' : discountType,
+      discountPercent: discountType === 'percent' ? Number(discountValue || 0) : 0,
+      discountValue: Number(discountValue || 0),
       total,
       paymentMethod,
       cashGiven: Number(cashGiven || 0),
@@ -803,7 +825,9 @@ export default function CloudPOS({
     setCompletedTransaction(transactionData);
     if (onCompleteSale) onCompleteSale(transactionData);
     setCart([]);
-    setDiscountAmount(0);
+    setDiscountValue(0);
+    setDiscountType('nominal');
+    setIsDiscountAuthorized(false);
     setActivePreorder(null);
     setCashGiven('');
     setIsCheckoutOpen(false);
@@ -815,6 +839,12 @@ export default function CloudPOS({
       `- ${i.modelName} [IMEI: ${i.imei}]\n  Kondisi: ${i.condition} | Garansi: ${i.storeWarranty}\n  Harga: ${formatRupiah(i.appliedPrice)}`
     ).join('\n\n');
 
+    const discountLine = completedTransaction.preorderId
+      ? `Potongan Titip DP (${completedTransaction.preorderId}): -${formatRupiah(completedTransaction.discountAmount)}\n`
+      : (completedTransaction.discountAmount > 0
+          ? `Diskon Toko${completedTransaction.discountType === 'percent' ? ` (${completedTransaction.discountPercent}%)` : ''}: -${formatRupiah(completedTransaction.discountAmount)}\n`
+          : '');
+
     const msg = encodeURIComponent(
       `*BUKTI PEMBAYARAN RESMI iConicstore*\n` +
       `No. Nota: ${completedTransaction.id}\n` +
@@ -825,8 +855,7 @@ export default function CloudPOS({
       `Tipe: ${completedTransaction.preorderId ? `Pelunasan Pre-Order (${completedTransaction.preorderId})` : (completedTransaction.pricingMode === 'reseller' ? 'Harga Khusus Reseller' : 'Retail Umum')}\n\n` +
       `*RINCIAN PERANGKAT APPLE:*\n${itemsList}\n\n` +
       `Subtotal: ${formatRupiah(completedTransaction.subtotal)}\n` +
-      (completedTransaction.preorderId ? `Potongan Titip DP (${completedTransaction.preorderId}): -${formatRupiah(completedTransaction.discountAmount)}\n` : '') +
-      (completedTransaction.discountAmount > 0 && !completedTransaction.preorderId ? `Diskon Toko: -${formatRupiah(completedTransaction.discountAmount)}\n` : '') +
+      discountLine +
       `*${completedTransaction.preorderId ? 'Sisa Pelunasan Dibayar' : 'Total Bayar'}: ${formatRupiah(completedTransaction.total)}*\n` +
       `Metode: ${completedTransaction.paymentMethod.toUpperCase()}\n\n` +
       `*STATUS KARTU GARANSI DIGITAL:*\n` +
@@ -1620,40 +1649,188 @@ export default function CloudPOS({
                 </div>
               )}
 
-              {/* Discount with Supervisor PIN Threshold (jika bukan pre-order) */}
+              {/* Discount Selector: Flexible Nominal (Rp) or Percent (%) */}
               {!activePreorder && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--text-dim)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                    <Percent style={{ width: '12px', height: '12px' }} />
-                    <span>Diskon Toko:</span>
-                  </span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <span style={{ color: 'var(--text-dim)', fontSize: '12px' }}>Rp</span>
-                    <input
-                      type="number"
-                      value={discountAmount}
-                      onChange={(e) => {
-                        const val = Number(e.target.value);
-                        if (val > 100000) {
-                          setSupervisorAction('discount');
-                          setIsSupervisorModalOpen(true);
-                        }
-                        setDiscountAmount(val);
-                      }}
-                      style={{
-                        background: 'var(--surface-2)',
-                        border: '1px solid var(--border)',
-                        color: 'var(--text)',
-                        textAlign: 'right',
-                        fontSize: '12px',
-                        padding: '5px 8px',
-                        borderRadius: '6px',
-                        width: '100px',
-                        fontFamily: 'var(--font-mono)'
-                      }}
-                      placeholder="0"
-                    />
+                <div style={{
+                  background: 'var(--surface-2)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '10px',
+                  padding: '10px 12px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                    <span style={{ color: 'var(--text)', fontSize: '12px', fontWeight: '600', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                      <Percent style={{ width: '13px', height: '13px', color: 'var(--accent)' }} />
+                      <span>Diskon Toko:</span>
+                    </span>
+
+                    {/* Mode Toggle: Rp vs % */}
+                    <div style={{
+                      display: 'inline-flex',
+                      background: 'var(--surface)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '8px',
+                      padding: '2px',
+                      gap: '2px'
+                    }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDiscountType('nominal');
+                          setDiscountValue(0);
+                          setIsDiscountAuthorized(false);
+                        }}
+                        style={{
+                          padding: '3px 10px',
+                          borderRadius: '6px',
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          border: 'none',
+                          cursor: 'pointer',
+                          background: discountType === 'nominal' ? 'var(--accent)' : 'transparent',
+                          color: discountType === 'nominal' ? 'var(--accent-ink)' : 'var(--text-dim)',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        Rp (Nominal)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDiscountType('percent');
+                          setDiscountValue(0);
+                          setIsDiscountAuthorized(false);
+                        }}
+                        style={{
+                          padding: '3px 10px',
+                          borderRadius: '6px',
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          border: 'none',
+                          cursor: 'pointer',
+                          background: discountType === 'percent' ? 'var(--accent)' : 'transparent',
+                          color: discountType === 'percent' ? 'var(--accent-ink)' : 'var(--text-dim)',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        % (Persen)
+                      </button>
+                    </div>
                   </div>
+
+                  {/* Input & Presets Row */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
+                    {/* Quick Presets */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+                      {discountType === 'percent' ? (
+                        [5, 10, 15, 20].map((pct) => (
+                          <button
+                            key={pct}
+                            type="button"
+                            onClick={() => {
+                              setDiscountValue(pct);
+                              setIsDiscountAuthorized(false);
+                            }}
+                            style={{
+                              border: Number(discountValue) === pct ? '1px solid var(--accent)' : '1px solid var(--border)',
+                              background: Number(discountValue) === pct ? 'rgba(0, 113, 227, 0.18)' : 'var(--surface)',
+                              color: Number(discountValue) === pct ? 'var(--accent)' : 'var(--text-dim)',
+                              fontSize: '10.5px',
+                              fontWeight: '700',
+                              padding: '3px 8px',
+                              borderRadius: '6px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {pct}%
+                          </button>
+                        ))
+                      ) : (
+                        [50000, 100000, 150000, 200000].map((amt) => (
+                          <button
+                            key={amt}
+                            type="button"
+                            onClick={() => {
+                              setDiscountValue(amt);
+                              setIsDiscountAuthorized(false);
+                            }}
+                            style={{
+                              border: Number(discountValue) === amt ? '1px solid var(--accent)' : '1px solid var(--border)',
+                              background: Number(discountValue) === amt ? 'rgba(0, 113, 227, 0.18)' : 'var(--surface)',
+                              color: Number(discountValue) === amt ? 'var(--accent)' : 'var(--text-dim)',
+                              fontSize: '10px',
+                              fontWeight: '700',
+                              padding: '3px 7px',
+                              borderRadius: '6px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {amt >= 1000 ? `${amt / 1000}k` : amt}
+                          </button>
+                        ))
+                      )}
+                    </div>
+
+                    {/* Numeric Input */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: 'auto' }}>
+                      {discountType === 'nominal' && (
+                        <span style={{ color: 'var(--text-dim)', fontSize: '12px', fontWeight: '600' }}>Rp</span>
+                      )}
+                      <input
+                        type="number"
+                        min="0"
+                        max={discountType === 'percent' ? 100 : undefined}
+                        value={discountValue === 0 ? '' : discountValue}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          const val = raw === '' ? 0 : Number(raw);
+                          if (discountType === 'percent') {
+                            setDiscountValue(Math.min(100, Math.max(0, val)));
+                          } else {
+                            setDiscountValue(Math.max(0, val));
+                          }
+                          setIsDiscountAuthorized(false);
+                        }}
+                        style={{
+                          background: 'var(--surface)',
+                          border: '1px solid var(--border)',
+                          color: 'var(--text)',
+                          textAlign: 'right',
+                          fontSize: '13px',
+                          fontWeight: '700',
+                          padding: '6px 8px',
+                          borderRadius: '6px',
+                          width: discountType === 'percent' ? '65px' : '105px',
+                          fontFamily: 'var(--font-mono)'
+                        }}
+                        placeholder="0"
+                      />
+                      {discountType === 'percent' && (
+                        <span style={{ color: 'var(--text-dim)', fontSize: '13px', fontWeight: '700' }}>%</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Calculated summary row if discount applied */}
+                  {effectiveDiscount > 0 && (
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      paddingTop: '6px',
+                      borderTop: '1px dashed var(--border)',
+                      fontSize: '11.5px'
+                    }}>
+                      <span style={{ color: 'var(--text-dim)' }}>
+                        {discountType === 'percent' ? `Potongan Diskon (${discountValue}%):` : 'Potongan Diskon:'}
+                      </span>
+                      <span style={{ color: '#30D158', fontWeight: '800', fontFamily: 'var(--font-mono)' }}>
+                        - {formatRupiah(effectiveDiscount)}
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1678,7 +1855,16 @@ export default function CloudPOS({
             {/* Primary Action Button: Checkout */}
             <button
               type="button"
-              onClick={() => setIsCheckoutOpen(true)}
+              onClick={() => {
+                if (cart.length === 0) return;
+                const threshold = storeSettings?.supervisorDiscountThreshold || 200000;
+                if (!activePreorder && effectiveDiscount > threshold && !isDiscountAuthorized) {
+                  setSupervisorAction('discount');
+                  setIsSupervisorModalOpen(true);
+                  return;
+                }
+                setIsCheckoutOpen(true);
+              }}
               disabled={cart.length === 0}
               style={{
                 width: '100%',
@@ -2146,6 +2332,10 @@ export default function CloudPOS({
                 <button
                   type="button"
                   onClick={() => {
+                    if (supervisorAction === 'discount') {
+                      setDiscountValue(0);
+                      setIsDiscountAuthorized(false);
+                    }
                     setIsSupervisorModalOpen(false);
                     setSupervisorPin('');
                     setSupervisorError('');
@@ -2222,6 +2412,31 @@ export default function CloudPOS({
                 <div style={{ color: 'var(--text-dim)', fontSize: '11px', marginTop: '3px' }}>
                   Perangkat: <strong style={{ color: 'var(--text)' }}>{activePreorder.modelRequested}</strong>
                 </div>
+              </div>
+            )}
+
+            {/* Banner Khusus Diskon Toko */}
+            {!activePreorder && effectiveDiscount > 0 && (
+              <div style={{
+                background: 'rgba(48, 209, 88, 0.08)',
+                border: '1px solid rgba(48, 209, 88, 0.25)',
+                borderRadius: '10px',
+                padding: '10px 14px',
+                marginBottom: '16px',
+                fontSize: '12px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Percent style={{ width: '13px', height: '13px', color: '#30D158' }} />
+                  <span style={{ color: 'var(--text)', fontWeight: '600' }}>
+                    Diskon Toko ({discountType === 'percent' ? `${discountValue}%` : 'Nominal'}):
+                  </span>
+                </div>
+                <span style={{ color: '#30D158', fontWeight: '800', fontFamily: 'var(--font-mono)' }}>
+                  - {formatRupiah(effectiveDiscount)}
+                </span>
               </div>
             )}
 
@@ -2561,7 +2776,7 @@ export default function CloudPOS({
               </div>
 
               <div style={{ borderTop: '1px solid #000000', marginTop: '8px', paddingTop: '6px', display: 'flex', flexDirection: 'column', gap: '3px', fontSize: '10px' }}>
-                {completedTransaction.preorderId && (
+                {completedTransaction.preorderId ? (
                   <>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span>Subtotal Unit:</span>
@@ -2572,7 +2787,18 @@ export default function CloudPOS({
                       <span>- {formatRupiah(completedTransaction.discountAmount || 0)}</span>
                     </div>
                   </>
-                )}
+                ) : (completedTransaction.discountAmount > 0 ? (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Subtotal Unit:</span>
+                      <span>{formatRupiah((completedTransaction.total || 0) + (completedTransaction.discountAmount || 0))}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#111827' }}>
+                      <span>Diskon Toko{completedTransaction.discountType === 'percent' ? ` (${completedTransaction.discountPercent}%)` : ''}:</span>
+                      <span>- {formatRupiah(completedTransaction.discountAmount || 0)}</span>
+                    </div>
+                  </>
+                ) : null)}
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '800' }}>
                   <span>{completedTransaction.preorderId ? 'SISA PELUNASAN:' : 'TOTAL:'}</span>
                   <span>{formatRupiah(completedTransaction.total)}</span>
