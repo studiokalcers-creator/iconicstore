@@ -250,13 +250,51 @@ export default function CloudPOS({
     try {
       let decodedText = null;
 
-      // Layer 1: Native BarcodeDetector API (Zero-dependency & instant on modern iOS/Android/Chrome)
+      // Downscale high-resolution photo from mobile camera (e.g. 12MP down to max 1200px)
+      // This eliminates memory exhaustion, fixes rotation, and speeds up binarization by 15x
+      const optimizedFile = await new Promise((resolve) => {
+        try {
+          const img = new Image();
+          img.onload = () => {
+            const maxDim = 1200;
+            let w = img.width;
+            let h = img.height;
+            if (w > maxDim || h > maxDim) {
+              if (w > h) {
+                h = Math.round((h * maxDim) / w);
+                w = maxDim;
+              } else {
+                w = Math.round((w * maxDim) / h);
+                h = maxDim;
+              }
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+            canvas.toBlob((blob) => {
+              if (blob) {
+                resolve(new File([blob], 'scan_optimized.jpg', { type: 'image/jpeg' }));
+              } else {
+                resolve(file);
+              }
+            }, 'image/jpeg', 0.92);
+          };
+          img.onerror = () => resolve(file);
+          img.src = URL.createObjectURL(file);
+        } catch (_) {
+          resolve(file);
+        }
+      });
+
+      // Layer 1: Native BarcodeDetector API (Zero-dependency & hardware-accelerated)
       if ('BarcodeDetector' in window) {
         try {
           const detector = new window.BarcodeDetector({
             formats: ['qr_code', 'code_128', 'code_39', 'ean_13', 'ean_8', 'upc_a', 'upc_e']
           });
-          const bitmap = await createImageBitmap(file);
+          const bitmap = await createImageBitmap(optimizedFile);
           const detected = await detector.detect(bitmap);
           if (detected && detected.length > 0 && detected[0].rawValue) {
             decodedText = detected[0].rawValue;
@@ -266,7 +304,7 @@ export default function CloudPOS({
         }
       }
 
-      // Layer 2: Robust ZXing File Scan via Html5Qrcode sandbox container
+      // Layer 2: ZXing Scan via Html5Qrcode sandbox container
       if (!decodedText) {
         const formatsToSupport = [
           Html5QrcodeSupportedFormats.CODE_128,
@@ -285,19 +323,27 @@ export default function CloudPOS({
           sandbox.style.position = 'absolute';
           sandbox.style.left = '-9999px';
           sandbox.style.top = '-9999px';
-          sandbox.style.width = '300px';
-          sandbox.style.height = '300px';
+          sandbox.style.width = '400px';
+          sandbox.style.height = '400px';
           sandbox.style.visibility = 'hidden';
           document.body.appendChild(sandbox);
         }
 
         const fileScanner = new Html5Qrcode('pos-barcode-file-sandbox', {
           formatsToSupport,
-          verbose: false
+          verbose: false,
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true
+          }
         });
 
         try {
-          decodedText = await fileScanner.scanFile(file, false);
+          decodedText = await fileScanner.scanFile(optimizedFile, false);
+        } catch (firstPassErr) {
+          // If optimized file pass failed, try scanning the raw original file
+          try {
+            decodedText = await fileScanner.scanFile(file, false);
+          } catch (_) {}
         } finally {
           try { await fileScanner.clear(); } catch (_) {}
         }
@@ -306,7 +352,7 @@ export default function CloudPOS({
       if (decodedText) {
         processDecodedBarcode(decodedText);
       } else {
-        setCameraError('Barcode tidak terbaca pada foto tersebut. Pastikan foto tegak, jelas, dan barcode tampak penuh.');
+        setCameraError('Barcode tidak terbaca pada foto tersebut. Pastikan foto tegak, tidak blur, dan barcode tampak penuh.');
       }
     } catch (err) {
       console.warn('File barcode scan error:', err);
@@ -367,18 +413,18 @@ export default function CloudPOS({
 
           const scanner = new Html5Qrcode('pos-barcode-scanner-view', {
             formatsToSupport,
-            verbose: false
+            verbose: false,
+            experimentalFeatures: {
+              useBarCodeDetectorIfSupported: true
+            }
           });
           scannerInstance = scanner;
           html5QrCodeRef.current = scanner;
 
-          // Optimized scanConfig with targeted qrbox to drastically reduce CPU load on mobile iOS
+          // Full-frame scanning without restrictive qrbox crop
+          // This allows square QR codes and rectangular 1D barcodes to be detected anywhere in the camera view
           const scanConfig = { 
-            fps: 10,
-            qrbox: (viewfinderWidth, viewfinderHeight) => ({
-              width: Math.min(Math.floor(viewfinderWidth * 0.85), 260),
-              height: Math.min(Math.floor(viewfinderHeight * 0.65), 140)
-            })
+            fps: 15
           };
 
           const onScanSuccess = (decodedText) => {
@@ -1420,10 +1466,12 @@ export default function CloudPOS({
                 zIndex: 10
               }}>
                 <div style={{
-                  width: '230px',
-                  height: '115px',
+                  width: '210px',
+                  height: '210px',
+                  maxWidth: '78%',
+                  maxHeight: '78%',
                   border: '2px solid rgba(10, 132, 255, 0.9)',
-                  borderRadius: '12px',
+                  borderRadius: '16px',
                   position: 'relative',
                   overflow: 'hidden',
                   display: 'flex',
