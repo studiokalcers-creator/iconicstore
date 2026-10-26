@@ -35,6 +35,7 @@ import {
   ImageIcon
 } from 'lucide-react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
+import jsQR from 'jsqr';
 import { formatRupiah, playBarcodeBeep } from '../utils/barcodePdfEngine';
 import confetti from 'canvas-confetti';
 import { showToast } from './AppleAlertToast';
@@ -71,6 +72,7 @@ export default function CloudPOS({
   const photoInputRef = useRef(null);
   const galleryInputRef = useRef(null);
   const availableUnitsRef = useRef([]);
+  const fastCanvasRef = useRef(null);
   const html5QrCodeRef = useRef(null);
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -238,7 +240,138 @@ export default function CloudPOS({
     }
   };
 
-  // Native Photo / File Barcode Scanner (Layer 1: Native BarcodeDetector, Layer 2: Html5Qrcode ZXing)
+  // Manual One-Shot Frame Scanner (Captures exact current video frame and decodes via jsQR multi-pass + ZXing)
+  const scanCurrentCameraFrame = async () => {
+    const container = document.getElementById('pos-barcode-scanner-view');
+    const video = container ? container.querySelector('video') : null;
+    if (!video || video.readyState < 2 || video.videoWidth === 0) {
+      showToast('Kamera sedang aktifasi. Arahkan lensa ke kode barcode/QR.', 'info');
+      return;
+    }
+
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      // Pass 1: jsQR on scaled 640px canvas (filters out laptop/monitor LCD subpixel moiré pattern)
+      try {
+        const maxDim = 640;
+        let sw = canvas.width;
+        let sh = canvas.height;
+        if (sw > maxDim || sh > maxDim) {
+          if (sw > sh) {
+            sh = Math.round((sh * maxDim) / sw);
+            sw = maxDim;
+          } else {
+            sw = Math.round((sw * maxDim) / sh);
+            sw = maxDim;
+          }
+        }
+        const sCanvas = document.createElement('canvas');
+        sCanvas.width = sw;
+        sCanvas.height = sh;
+        const sCtx = sCanvas.getContext('2d', { willReadFrequently: true });
+        sCtx.drawImage(canvas, 0, 0, sw, sh);
+        const sData = sCtx.getImageData(0, 0, sw, sh);
+        const qrScaled = jsQR(sData.data, sData.width, sData.height, { inversionAttempts: 'attemptBoth' });
+        if (qrScaled && qrScaled.data) {
+          processDecodedBarcode(qrScaled.data);
+          return;
+        }
+      } catch (_) {}
+
+      // Pass 2: jsQR on raw full video resolution
+      try {
+        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const qrRaw = jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: 'attemptBoth' });
+        if (qrRaw && qrRaw.data) {
+          processDecodedBarcode(qrRaw.data);
+          return;
+        }
+      } catch (_) {}
+
+      // Pass 3: Center crop (75% center region where square guide is positioned)
+      try {
+        const cropW = Math.round(canvas.width * 0.75);
+        const cropH = Math.round(canvas.height * 0.75);
+        const cropX = Math.round((canvas.width - cropW) / 2);
+        const cropY = Math.round((canvas.height - cropH) / 2);
+        const cropCanvas = document.createElement('canvas');
+        cropCanvas.width = cropW;
+        cropCanvas.height = cropH;
+        const cropCtx = cropCanvas.getContext('2d', { willReadFrequently: true });
+        cropCtx.drawImage(canvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+        const cropData = cropCtx.getImageData(0, 0, cropW, cropH);
+        const qrCrop = jsQR(cropData.data, cropData.width, cropData.height, { inversionAttempts: 'attemptBoth' });
+        if (qrCrop && qrCrop.data) {
+          processDecodedBarcode(qrCrop.data);
+          return;
+        }
+      } catch (_) {}
+
+      // Pass 4: Native BarcodeDetector if available
+      if ('BarcodeDetector' in window) {
+        try {
+          const detector = new window.BarcodeDetector({
+            formats: ['qr_code', 'code_128', 'code_39', 'ean_13', 'ean_8', 'upc_a', 'upc_e']
+          });
+          const detected = await detector.detect(canvas);
+          if (detected && detected.length > 0 && detected[0].rawValue) {
+            processDecodedBarcode(detected[0].rawValue);
+            return;
+          }
+        } catch (_) {}
+      }
+
+      // Pass 5: Convert canvas to Blob and scan via Html5Qrcode sandbox (for 1D barcodes)
+      const blob = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', 0.95));
+      if (blob) {
+        let sandbox = document.getElementById('pos-barcode-file-sandbox');
+        if (!sandbox) {
+          sandbox = document.createElement('div');
+          sandbox.id = 'pos-barcode-file-sandbox';
+          sandbox.style.position = 'absolute';
+          sandbox.style.left = '-9999px';
+          sandbox.style.top = '-9999px';
+          sandbox.style.width = '400px';
+          sandbox.style.height = '400px';
+          sandbox.style.visibility = 'hidden';
+          document.body.appendChild(sandbox);
+        }
+        const fileScanner = new Html5Qrcode('pos-barcode-file-sandbox', {
+          formatsToSupport: [
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.CODE_39,
+            Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.EAN_8,
+            Html5QrcodeSupportedFormats.UPC_A,
+            Html5QrcodeSupportedFormats.UPC_E,
+            Html5QrcodeSupportedFormats.QR_CODE
+          ],
+          verbose: false
+        });
+        try {
+          const res = await fileScanner.scanFile(new File([blob], 'frame.jpg', { type: 'image/jpeg' }), false);
+          if (res) {
+            processDecodedBarcode(res);
+            return;
+          }
+        } catch (_) {}
+        finally {
+          try { await fileScanner.clear(); } catch (_) {}
+        }
+      }
+
+      showToast('Barcode belum terdeteksi. Dekatkan kamera atau gunakan Ambil Foto Barcode.', 'info');
+    } catch (err) {
+      console.warn('Manual scan trigger error:', err);
+    }
+  };
+
+  // Native Photo / File Barcode Scanner (Layer 1: jsQR, Layer 2: BarcodeDetector, Layer 3: ZXing)
   const handleFileScan = async (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
@@ -251,7 +384,6 @@ export default function CloudPOS({
       let decodedText = null;
 
       // Downscale high-resolution photo from mobile camera (e.g. 12MP down to max 1200px)
-      // This eliminates memory exhaustion, fixes rotation, and speeds up binarization by 15x
       const optimizedFile = await new Promise((resolve) => {
         try {
           const img = new Image();
@@ -288,8 +420,27 @@ export default function CloudPOS({
         }
       });
 
+      // Layer 0: jsQR (Direct instant QR detection from canvas)
+      try {
+        const testImg = new Image();
+        testImg.src = URL.createObjectURL(optimizedFile);
+        await new Promise((r) => { testImg.onload = r; testImg.onerror = r; });
+        const canvas = document.createElement('canvas');
+        canvas.width = testImg.width;
+        canvas.height = testImg.height;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        ctx.drawImage(testImg, 0, 0);
+        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const qr = jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: 'attemptBoth' });
+        if (qr && qr.data) {
+          decodedText = qr.data;
+        }
+      } catch (jsqrErr) {
+        console.warn('jsQR file pass error:', jsqrErr);
+      }
+
       // Layer 1: Native BarcodeDetector API (Zero-dependency & hardware-accelerated)
-      if ('BarcodeDetector' in window) {
+      if (!decodedText && 'BarcodeDetector' in window) {
         try {
           const detector = new window.BarcodeDetector({
             formats: ['qr_code', 'code_128', 'code_39', 'ean_13', 'ean_8', 'upc_a', 'upc_e']
@@ -340,7 +491,6 @@ export default function CloudPOS({
         try {
           decodedText = await fileScanner.scanFile(optimizedFile, false);
         } catch (firstPassErr) {
-          // If optimized file pass failed, try scanning the raw original file
           try {
             decodedText = await fileScanner.scanFile(file, false);
           } catch (_) {}
@@ -362,11 +512,12 @@ export default function CloudPOS({
     }
   };
 
-  // Live Camera Barcode Scanner via html5-qrcode (ZXing Engine supporting Code-128, Code-39, EAN, UPC, QR on iOS Safari)
+  // Live Camera Barcode Scanner via html5-qrcode + Real-time Continuous jsQR Stream
   useEffect(() => {
     let isMounted = true;
     let scannerInstance = null;
     let videoObserver = null;
+    let qrScanInterval = null;
 
     if (isCameraScannerOpen) {
       setCameraError('');
@@ -421,8 +572,6 @@ export default function CloudPOS({
           scannerInstance = scanner;
           html5QrCodeRef.current = scanner;
 
-          // Full-frame scanning without restrictive qrbox crop
-          // This allows square QR codes and rectangular 1D barcodes to be detected anywhere in the camera view
           const scanConfig = { 
             fps: 15
           };
@@ -455,6 +604,43 @@ export default function CloudPOS({
 
           if (isMounted) {
             setIsCameraActive(true);
+
+            // Real-time ultra-fast jsQR continuous detection directly on video stream (< 5ms per frame)
+            qrScanInterval = setInterval(() => {
+              if (!isMounted) return;
+              const video = container.querySelector('video');
+              if (!video || video.readyState < 2 || video.videoWidth === 0) return;
+
+              try {
+                if (!fastCanvasRef.current) {
+                  fastCanvasRef.current = document.createElement('canvas');
+                }
+                const fCanvas = fastCanvasRef.current;
+                const maxDim = 640;
+                let w = video.videoWidth;
+                let h = video.videoHeight;
+                if (w > maxDim || h > maxDim) {
+                  if (w > h) {
+                    h = Math.round((h * maxDim) / w);
+                    w = maxDim;
+                  } else {
+                    w = Math.round((w * maxDim) / h);
+                    h = maxDim;
+                  }
+                }
+                fCanvas.width = w;
+                fCanvas.height = h;
+                const ctx = fCanvas.getContext('2d', { willReadFrequently: true });
+                ctx.drawImage(video, 0, 0, w, h);
+                const imgData = ctx.getImageData(0, 0, w, h);
+                const qr = jsQR(imgData.data, imgData.width, imgData.height, {
+                  inversionAttempts: 'attemptBoth'
+                });
+                if (qr && qr.data) {
+                  processDecodedBarcode(qr.data);
+                }
+              } catch (_) {}
+            }, 150);
           }
         } catch (err) {
           console.warn('Camera scanner error:', err);
@@ -477,6 +663,9 @@ export default function CloudPOS({
       return () => {
         isMounted = false;
         clearTimeout(timer);
+        if (qrScanInterval) {
+          clearInterval(qrScanInterval);
+        }
         if (videoObserver) {
           try { videoObserver.disconnect(); } catch (e) {}
         }
@@ -1523,6 +1712,34 @@ export default function CloudPOS({
               style={{ display: 'none' }}
             />
 
+            {/* Primary Instant Scan Button */}
+            <button
+              type="button"
+              onClick={scanCurrentCameraFrame}
+              disabled={isProcessingFile}
+              style={{
+                width: '100%',
+                background: 'linear-gradient(135deg, #0A84FF 0%, #0066CC 100%)',
+                color: '#FFFFFF',
+                border: 'none',
+                padding: '12px 16px',
+                borderRadius: '10px',
+                fontSize: '13.5px',
+                fontWeight: '700',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                marginBottom: '10px',
+                boxShadow: '0 4px 14px rgba(10, 132, 255, 0.35)',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <Barcode style={{ width: '18px', height: '18px' }} />
+              <span>Pindai Barcode Kamera Sekarang</span>
+            </button>
+
             {/* Dual Action: Ambil Foto Barcode (Native Apple Camera) & Pilih dari Galeri */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
               <button
@@ -1651,9 +1868,12 @@ export default function CloudPOS({
             {/* Manual Code Input inside Camera Modal */}
             <form onSubmit={(e) => {
               e.preventDefault();
-              if (!cameraManualCode.trim()) return;
-              processDecodedBarcode(cameraManualCode);
-              setCameraManualCode('');
+              if (cameraManualCode.trim()) {
+                processDecodedBarcode(cameraManualCode);
+                setCameraManualCode('');
+              } else {
+                scanCurrentCameraFrame();
+              }
             }} style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
               <input 
                 type="text" 
@@ -1673,6 +1893,7 @@ export default function CloudPOS({
               />
               <button 
                 type="submit" 
+                title={cameraManualCode.trim() ? "Input kode barcode manual" : "Pindai dari frame kamera"}
                 style={{
                   background: 'var(--accent)',
                   color: 'var(--accent-ink)',
@@ -1684,7 +1905,7 @@ export default function CloudPOS({
                   cursor: 'pointer'
                 }}
               >
-                Scan
+                {cameraManualCode.trim() ? 'Input' : 'Scan'}
               </button>
             </form>
 
