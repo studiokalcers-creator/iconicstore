@@ -29,8 +29,10 @@ import {
   Package,
   ShoppingCart,
   Sparkles,
-  Smartphone
+  Smartphone,
+  RefreshCw
 } from 'lucide-react';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { formatRupiah, playBarcodeBeep } from '../utils/barcodePdfEngine';
 import confetti from 'canvas-confetti';
 import { showToast } from './AppleAlertToast';
@@ -57,11 +59,13 @@ export default function CloudPOS({
   const [activePreorder, setActivePreorder] = useState(null);
   const [barcodeInput, setBarcodeInput] = useState('');
   
-  // Real Camera WebRTC Scanner State
+  // Real Camera Barcode Scanner State (html5-qrcode ZXing Engine)
   const [isCameraScannerOpen, setIsCameraScannerOpen] = useState(false);
   const [cameraError, setCameraError] = useState('');
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [cameraManualCode, setCameraManualCode] = useState('');
+  const [cameraRetryCount, setCameraRetryCount] = useState(0);
+  const html5QrCodeRef = useRef(null);
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   
@@ -193,84 +197,117 @@ export default function CloudPOS({
     showToast(`${unit.modelName} berhasil dimasukkan ke keranjang kasir.`, 'success', 'Scan Berhasil');
   };
 
-  // Live Camera WebRTC Scanner with native BarcodeDetector for iOS Safari & Mobile
+  // Live Camera Barcode Scanner via html5-qrcode (ZXing Engine supporting Code-128, Code-39, EAN, UPC, QR on iOS Safari)
   useEffect(() => {
-    let detectorTimer = null;
+    let isMounted = true;
+    let scannerInstance = null;
 
     if (isCameraScannerOpen) {
       setCameraError('');
       setIsCameraActive(false);
 
-      const initCamera = async () => {
+      const initScanner = async () => {
         try {
           if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            setCameraError('Kamera tidak didukung pada browser ini. Silakan gunakan tombol Uji Barcode Cepat di bawah.');
+            if (isMounted) {
+              setCameraError('Kamera tidak didukung pada browser ini atau dibuka di dalam in-app browser. Buka di Safari langsung.');
+            }
             return;
           }
 
-          const stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } }
-          });
+          const formatsToSupport = [
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.CODE_39,
+            Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.EAN_8,
+            Html5QrcodeSupportedFormats.UPC_A,
+            Html5QrcodeSupportedFormats.UPC_E,
+            Html5QrcodeSupportedFormats.QR_CODE
+          ];
 
-          streamRef.current = stream;
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-            videoRef.current.setAttribute('playsinline', 'true');
-            await videoRef.current.play();
+          const scanner = new Html5Qrcode('pos-barcode-scanner-view', {
+            formatsToSupport,
+            verbose: false
+          });
+          scannerInstance = scanner;
+          html5QrCodeRef.current = scanner;
+
+          const config = {
+            fps: 15,
+            qrbox: { width: 250, height: 130 },
+            aspectRatio: 1.333333
+          };
+
+          await scanner.start(
+            { facingMode: 'environment' },
+            config,
+            (decodedText) => {
+              if (!isMounted) return;
+              const rawVal = String(decodedText || '').trim();
+              const matched = availableUnits.find(u => 
+                (u.barcodeCode && u.barcodeCode.toUpperCase() === rawVal.toUpperCase()) ||
+                u.imei === rawVal ||
+                (u.serialNumber && u.serialNumber.toUpperCase() === rawVal.toUpperCase())
+              );
+              if (matched) {
+                try { playBarcodeBeep(); } catch (e) {}
+                if (scanner && scanner.isScanning) {
+                  scanner.stop().catch(() => {});
+                }
+                addToCart(matched);
+                setIsCameraScannerOpen(false);
+                showToast(`Unit ${matched.modelName} berhasil ditambahkan ke keranjang!`, 'success', 'Barcode Terdeteksi');
+              } else {
+                showToast(`Kode barcode "${rawVal}" terdeteksi, namun tidak cocok dengan stok unit.`, 'info');
+              }
+            },
+            () => {}
+          );
+
+          if (isMounted) {
             setIsCameraActive(true);
           }
-
-          // Check native BarcodeDetector support (iOS Safari 17+, Chromium)
-          if ('BarcodeDetector' in window) {
-            try {
-              const formats = await window.BarcodeDetector.getSupportedFormats();
-              const validFormats = formats.length > 0 ? formats : ['code_128', 'qr_code', 'ean_13', 'code_39'];
-              const detector = new window.BarcodeDetector({ formats: validFormats });
-
-              detectorTimer = setInterval(async () => {
-                if (!videoRef.current || videoRef.current.readyState < 2) return;
-                try {
-                  const detected = await detector.detect(videoRef.current);
-                  if (detected && detected.length > 0) {
-                    const rawVal = detected[0].rawValue.trim();
-                    const matched = availableUnits.find(u => 
-                      u.barcodeCode.toUpperCase() === rawVal.toUpperCase() ||
-                      u.imei === rawVal ||
-                      u.serialNumber.toUpperCase() === rawVal.toUpperCase()
-                    );
-                    if (matched) {
-                      clearInterval(detectorTimer);
-                      addToCart(matched);
-                      setIsCameraScannerOpen(false);
-                    }
-                  }
-                } catch (detectErr) {}
-              }, 300);
-            } catch (detectorErr) {}
-          }
         } catch (err) {
-          console.warn('Camera stream error:', err);
-          setCameraError('Izin akses kamera belum diberikan atau diblokir Safari. Anda dapat memilih unit langsung di bawah untuk uji coba barcode.');
+          console.warn('Camera scanner error:', err);
+          if (isMounted) {
+            setIsCameraActive(false);
+            const errStr = String(err?.message || err || '');
+            if (errStr.includes('NotAllowedError') || errStr.includes('Permission') || errStr.includes('denied') || errStr.includes('Dismissed')) {
+              setCameraError('Izin akses kamera belum diberikan atau diblokir Safari. Ikuti langkah di bawah untuk mengaktifkannya di iPhone Anda.');
+            } else if (errStr.includes('NotFoundError') || errStr.includes('DevicesNotFoundError')) {
+              setCameraError('Kamera belakang tidak ditemukan pada perangkat ini.');
+            } else {
+              setCameraError('Kamera belum dapat dibuka. Pastikan izin kamera aktif dan situs dibuka langsung di aplikasi Safari.');
+            }
+          }
         }
       };
 
-      initCamera();
+      const timer = setTimeout(initScanner, 200);
+
+      return () => {
+        isMounted = false;
+        clearTimeout(timer);
+        if (scannerInstance) {
+          if (scannerInstance.isScanning) {
+            scannerInstance.stop().then(() => scannerInstance.clear()).catch(() => {});
+          } else {
+            try { scannerInstance.clear(); } catch (e) {}
+          }
+        }
+      };
     } else {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(t => t.stop());
-        streamRef.current = null;
+      if (html5QrCodeRef.current) {
+        if (html5QrCodeRef.current.isScanning) {
+          html5QrCodeRef.current.stop().then(() => html5QrCodeRef.current.clear()).catch(() => {});
+        } else {
+          try { html5QrCodeRef.current.clear(); } catch (e) {}
+        }
+        html5QrCodeRef.current = null;
       }
       setIsCameraActive(false);
     }
-
-    return () => {
-      if (detectorTimer) clearInterval(detectorTimer);
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(t => t.stop());
-        streamRef.current = null;
-      }
-    };
-  }, [isCameraScannerOpen, availableUnits]);
+  }, [isCameraScannerOpen, cameraRetryCount, availableUnits]);
 
   // Remove unit from cart
   const removeFromCart = (unitId) => {
@@ -1204,7 +1241,7 @@ export default function CloudPOS({
               </button>
             </div>
 
-            {/* Viewfinder Video Frame */}
+            {/* Viewfinder Video Frame with html5-qrcode container */}
             <div style={{
               width: '100%',
               aspectRatio: '4/3',
@@ -1219,65 +1256,89 @@ export default function CloudPOS({
               border: '1px solid var(--border)',
               marginBottom: '14px'
             }}>
-              <video 
-                ref={videoRef}
-                playsInline
-                autoPlay
-                muted
+              <div 
+                id="pos-barcode-scanner-view" 
                 style={{
                   width: '100%',
                   height: '100%',
-                  objectFit: 'cover',
                   display: isCameraActive ? 'block' : 'none'
                 }}
               />
 
-              {/* Laser Scan Guide Overlay */}
-              <div style={{
-                position: 'absolute',
-                inset: 0,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                pointerEvents: 'none',
-                background: isCameraActive ? 'transparent' : 'rgba(0,0,0,0.6)'
-              }}>
-                <div style={{
-                  width: '200px',
-                  height: '110px',
-                  border: '2px solid rgba(10, 132, 255, 0.8)',
-                  borderRadius: '10px',
-                  position: 'relative',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  boxShadow: '0 0 20px rgba(10, 132, 255, 0.25)'
-                }}>
+              {!isCameraActive && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px', textAlign: 'center', gap: '8px' }}>
                   <div style={{
-                    width: '100%',
-                    height: '2px',
-                    background: '#FF453A',
-                    boxShadow: '0 0 10px #FF453A'
-                  }}></div>
+                    width: '180px',
+                    height: '90px',
+                    border: '2px dashed rgba(10, 132, 255, 0.4)',
+                    borderRadius: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: '4px'
+                  }}>
+                    <Camera style={{ width: '28px', height: '28px', color: 'var(--accent)', opacity: 0.8 }} />
+                  </div>
+                  <span style={{ fontSize: '12px', color: 'var(--text-dim)', fontWeight: '600' }}>
+                    {cameraError ? 'Sensor kamera belum aktif' : 'Mengaktifkan sensor kamera iOS...'}
+                  </span>
                 </div>
-                <span style={{ fontSize: '11px', color: '#FFFFFF', marginTop: '10px', textShadow: '0 1px 4px rgba(0,0,0,0.8)', fontWeight: '600' }}>
-                  {isCameraActive ? 'Arahkan ke barcode / stiker unit Apple' : 'Mengaktifkan sensor kamera...'}
-                </span>
-              </div>
+              )}
             </div>
 
             {cameraError && (
-              <div style={{
-                background: 'rgba(255, 69, 58, 0.1)',
-                border: '1px solid rgba(255, 69, 58, 0.3)',
-                borderRadius: '8px',
-                padding: '8px 12px',
-                marginBottom: '12px',
-                fontSize: '11.5px',
-                color: '#FF6961'
-              }}>
-                {cameraError}
+              <div style={{ marginBottom: '14px' }}>
+                <div style={{
+                  background: 'rgba(255, 69, 58, 0.1)',
+                  border: '1px solid rgba(255, 69, 58, 0.3)',
+                  borderRadius: '10px',
+                  padding: '10px 12px',
+                  marginBottom: '10px',
+                  fontSize: '12px',
+                  color: '#FF6961',
+                  lineHeight: '1.4'
+                }}>
+                  {cameraError}
+                </div>
+
+                {/* Retry Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCameraError('');
+                    setCameraRetryCount(c => c + 1);
+                  }}
+                  style={{
+                    width: '100%',
+                    background: 'var(--accent)',
+                    color: 'var(--accent-ink)',
+                    border: 'none',
+                    padding: '10px 14px',
+                    borderRadius: '10px',
+                    fontSize: '13px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    marginBottom: '12px'
+                  }}
+                >
+                  <RefreshCw style={{ width: '14px', height: '14px' }} />
+                  <span>Coba Buka Kamera Lagi</span>
+                </button>
+
+                {/* iPhone Safari Step-by-Step Guide */}
+                <div style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '10px', padding: '12px 14px', fontSize: '11.5px', lineHeight: '1.5', color: 'var(--text-dim)' }}>
+                  <strong style={{ color: 'var(--text)', display: 'block', marginBottom: '6px' }}>📱 Panduan Mengaktifkan Kamera di Safari iOS:</strong>
+                  <ol style={{ paddingLeft: '16px', margin: 0, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <li>Tekan ikon <strong>aA</strong> (atau gembok) di sebelah kiri bilah URL Safari.</li>
+                    <li>Pilih menu <strong>Pengaturan Situs Web (Website Settings)</strong>.</li>
+                    <li>Pada baris <strong>Kamera (Camera)</strong>, ubah menjadi <strong>Izinkan (Allow)</strong>.</li>
+                    <li><em>Jika membuka dari WhatsApp/IG:</em> Tekan tombol bagikan di pojok bawah lalu pilih <strong>Buka di Safari</strong>.</li>
+                  </ol>
+                </div>
               </div>
             )}
 

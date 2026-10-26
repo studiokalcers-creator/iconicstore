@@ -1475,3 +1475,22 @@ input, select {
   }
 }
 
+/* POS Barcode Scanner container */
+#pos-barcode-scanner-view {
+  border: none !important;
+  position: relative !important;
+}
+#pos-barcode-scanner-view video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  border-radius: 12px !important;
+}
+#pos-barcode-scanner-view img {
+  display: none !important;
+}
+#pos-barcode-scanner-view__scan_region {
+  min-height: 100% !important;
+}
+
+
